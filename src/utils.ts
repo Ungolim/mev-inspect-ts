@@ -6,18 +6,6 @@ import { DexResult } from "./DEXQuery";
 import { ERC20_ABI } from "./abi";
 import { ParitySubCall } from "./types";
 
-export const GWEI = BigNumber.from(10).pow(9);
-export const ETHER = BigNumber.from(10).pow(18);
-
-export function maxBigNumber(priceQueries: Array<BigNumber>) {
-  return _.reduce(priceQueries, (max: BigNumber, price: BigNumber) => {
-    if (price.gt(max)) {
-      return price
-    }
-    return max
-  }, BigNumber.from(0))
-}
-
 export function maxDexResult(priceQueries: Array<DexResult>) {
   return _.reduce(priceQueries, (max: DexResult, cur: DexResult) => {
       if (cur.amount.gt(max.amount)) {

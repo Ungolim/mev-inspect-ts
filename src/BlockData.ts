@@ -62,7 +62,7 @@ export class BlockData {
     const logsFile = `${cacheDir}/${block.number}.logs`;
 
     let txTraces: Array<ParitySubCall>;
-    if (fs.existsSync(txTraceFile)) {
+    if (!forceRefresh && fs.existsSync(txTraceFile)) {
       txTraces = JSON.parse(fs.readFileSync(txTraceFile).toString())
     } else {
       console.log("downloading traces: " + txTraceFile)
@@ -71,7 +71,7 @@ export class BlockData {
     }
 
     let logs: providers.Log[]
-    if (fs.existsSync(logsFile)) {
+    if (!forceRefresh && fs.existsSync(logsFile)) {
       logs = JSON.parse(fs.readFileSync(logsFile).toString())
     } else {
       console.log("downloading logs: " + logsFile)

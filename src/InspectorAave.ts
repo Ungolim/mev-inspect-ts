@@ -39,8 +39,6 @@ export class InspectorAave extends Inspector {
       .value()
     const erc20Contract = new Interface(ERC20_ABI);
 
-    const offers: Array<LiquidationOffer> = []
-
     for (const liquidateTransactionHash of liquidateTransactionHashes) {
       const transaction = await this.provider.getTransaction(liquidateTransactionHash)
       const transactionReceipt = await this.provider.getTransactionReceipt(liquidateTransactionHash)
@@ -85,7 +83,6 @@ export class InspectorAave extends Inspector {
           source: "aave",
           liquidationDetails: parsedLiquidationCall.args._user
         };
-        offers.push(offer)
 
         const tokenTracker = new TokenTracker(subCallsOfLiquidation);
         liquidations.push({

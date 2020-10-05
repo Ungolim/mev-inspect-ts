@@ -1,10 +1,10 @@
 import * as _ from "lodash";
-import { Interface, TransactionDescription } from "ethers/lib/utils";
+import { Interface} from "ethers/lib/utils";
 import { BigNumber } from "@ethersproject/bignumber";
 import { printTable } from 'console-table-printer';
 
 import { BlockData } from "./BlockData";
-import { DEXQuery, DexResult } from "./DEXQuery";
+import { DEXQuery} from "./DEXQuery";
 import { ERC20_ABI } from "./abi";
 import { WETH } from "./addresses";
 import { ParitySubCallWithRevert } from "./types";
