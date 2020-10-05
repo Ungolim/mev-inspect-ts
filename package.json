@@ -1,0 +1,25 @@
+{
+  "name": "mev-inspect",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "console-table-printer": "^2.4.8",
+    "ethers": "^5.0.14",
+    "lodash": "^4.17.20",
+    "ts-node": "^9.0.0",
+    "typescript": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.161",
+    "@types/node": "^14.11.1"
+  },
+  "scripts": {
+    "start": "npx ts-node --project tsconfig.json src/index.ts"
+  }
+}
