@@ -25,12 +25,15 @@ async function doStuff() {
   // const blockNumber = 10921074; // busy
 
   // Interesting All
-  const blockNumber = 10971399;
+  // const blockNumber = 10971399;
+
+  // Compound Liquidation Block
+  const blockNumber = 10974735;
 
   const blockData = await BlockData.createFromBlockNumber(provider, blockNumber);
 
   // UNCOMMENT ONE OF THE INSPECTORS
-  // const inspectorAave = await InspectorAave.create(provider);
+  // const inspector = await InspectorAave.create(provider);
   const inspector = new InspectorAll(provider);
 
   const transactions = await inspector.inspect(blockData);
