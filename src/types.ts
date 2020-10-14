@@ -1,24 +1,42 @@
-import { TransactionReceipt, TransactionResponse } from "@ethersproject/abstract-provider";
-import { TokenTracker } from "./TokenTracker";
-import { BigNumber } from "ethers";
+import { providers, BigNumber } from "ethers";
+
 import { DEX } from "./DEXQuery";
-import { TransactionDescription } from "ethers/lib/utils";
 
-type CallType = 'call' | 'delegatecall' | 'staticcall' | 'create' | 'create2' | 'suicide'
-
-export interface LiquidationTransactions {
-  transaction: TransactionResponse;
-  transactionReceipt: TransactionReceipt;
-  tokenTracker: TokenTracker;
-  transactionCalls: Array<ParitySubCallWithRevert>
-  liquidations: Array<LiquidationDetails>;
+export enum ACTION_PROVIDER {
+  AAVE,
+  COMPOUND,
+  UNISWAP,
+  SUSHISWAP,
+  CURVE,
+  ZEROX,
+  BALANCER,
 }
 
-export interface LiquidationDetails {
-  tokenTracker: TokenTracker;
-  parsedLiquidationCall: TransactionDescription;
-  offer: LiquidationOffer;
-  liquidationCall: ParitySubCallWithRevert;
+export enum ACTION_TYPE {
+  TRANSFER,
+  LIQUIDATION,
+  TRADE,
+}
+
+export enum STATUS {
+  REVERTED,
+  CHECKED,
+  SUCCESS
+}
+
+export enum TRANSACTION_TYPE {
+  UKNOWN,
+  ARBITRAGE,
+  LIQUIDATION,
+}
+
+export interface Action {
+  subcall: ParitySubCallWithRevert,
+  transactionHash: string;
+  provider: ACTION_PROVIDER;
+  type: ACTION_TYPE;
+  status: STATUS;
+  actionCalls: Array<ParitySubCallWithRevert>
 }
 
 export interface LiquidationOffer {
@@ -26,33 +44,50 @@ export interface LiquidationOffer {
   destAmount: BigNumber;
   sourceToken: string;
   sourceAmount: BigNumber;
-  source: string;
   liquidationDetails: string;
 }
+export interface LiquidationAction extends Action {
+  type: ACTION_TYPE.LIQUIDATION;
+  liquidation?: LiquidationOffer;
+}
 
-export interface ParitySubCallAction {
-  callType: CallType;
+interface TradeDetails {
+  destToken: string;
+  destAmount: BigNumber;
+  sourceToken: string;
+  sourceAmount: BigNumber;
+}
+export interface TradeAction extends Action {
+  type: ACTION_TYPE.TRADE;
+  trade?: TradeDetails;
+}
+
+interface TransferDetails {
   from: string;
-  gas: string;
-  input: string;
-  to: string | undefined; // contract call
-  value: string;
+  to: string;
+  token: string;
+  value: BigNumber;
+}
+export interface TransferAction extends Action {
+  type: ACTION_TYPE.TRANSFER;
+  transfer?: TransferDetails;
 }
 
-export interface ParitySubCallWithRevert extends ParitySubCall {
-  reverted: boolean
+export type SpecificAction = LiquidationAction | TransferAction | TradeAction
+
+export interface txTypeWithStatus {
+  type: TRANSACTION_TYPE
+  success: boolean
 }
-export interface ParitySubCall {
-  action: ParitySubCallAction;
-  result: {
-    gasUsed: string;
-    output: string;
-  };
-  subtraces: number;
-  traceAddress: Array<number>;
+
+export interface TransactionEvaluation {
   transactionHash: string;
-  type: CallType;
-  error?: 'Reverted'
+  transaction: providers.TransactionResponse,
+  transactionReceipt: providers.TransactionReceipt,
+  specificActions: SpecificAction[],
+  calls: ParitySubCallWithRevert[],
+  unknownCalls: ParitySubCallWithRevert[],
+  inferredType: txTypeWithStatus
 }
 
 export interface ArbitrageProposal {
@@ -65,4 +100,33 @@ export interface ArbitrageProposal {
   liquidationDetails: string;
   profitInEth: BigNumber;
   token: string;
+}
+
+
+type ParityCallType = 'call' | 'delegatecall' | 'staticcall' | 'create' | 'create2' | 'suicide' | 'reward'
+
+export interface ParitySubCallAction {
+  callType: ParityCallType;
+  from: string;
+  gas: string;
+  input: string;
+  to: string | undefined;
+  value: string;
+}
+
+export interface ParitySubCall {
+  action: ParitySubCallAction;
+  result: {
+    gasUsed: string;
+    output: string;
+  };
+  subtraces: number;
+  traceAddress: Array<number>;
+  transactionHash: string;
+  type: ParityCallType;
+  error?: 'Reverted'
+}
+
+export interface ParitySubCallWithRevert extends ParitySubCall {
+  reverted: boolean
 }

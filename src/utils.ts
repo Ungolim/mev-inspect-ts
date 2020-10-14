@@ -4,38 +4,31 @@ import { Contract, providers } from "ethers";
 
 import { DexResult } from "./DEXQuery";
 import { ERC20_ABI } from "./abi";
-import { ParitySubCall } from "./types";
+import { ParitySubCall, ParitySubCallWithRevert } from "./types";
+import { Interface } from "ethers/lib/utils";
 
-export function maxDexResult(priceQueries: Array<DexResult>) {
-  return _.reduce(priceQueries, (max: DexResult, cur: DexResult) => {
-      if (cur.amount.gt(max.amount)) {
+export function maxDexResult(priceQueries: Array<DexResult>): DexResult|undefined {
+  return _.reduce(priceQueries, (max: DexResult|undefined, cur: DexResult) => {
+      if (max === undefined || cur.amount.gt(max.amount)) {
         return cur
       }
       return max
-    }, {
-      dex: "",
-      details: "",
-      amount: BigNumber.from(0)
-    }
+    }, undefined
   )
 }
 
-export function minDexResult(priceQueries: Array<DexResult>) {
-  return _.reduce(priceQueries, (max: DexResult, cur: DexResult) => {
-      if (max.amount.eq(0) ||
+export function minDexResult(priceQueries: Array<DexResult>): DexResult|undefined {
+  return _.reduce(priceQueries, (max: DexResult|undefined, cur: DexResult) => {
+      if (max === undefined ||
         (cur.amount.lt(max.amount))) {
         return cur
       }
       return max
-    }, {
-      dex: "",
-      details: "",
-      amount: BigNumber.from(0)
-    }
+    }, undefined
   )
 }
 
-export function bigNumberToDecimal(value: BigNumber, base: number = 18) {
+export function bigNumberToDecimal(value: BigNumber, base = 18): number {
   const divisor = BigNumber.from(10).pow(base)
   return value.mul(100).div(divisor).toNumber() / 100
 }
@@ -46,6 +39,17 @@ export async function getDecimalsByAddress(provider: providers.JsonRpcProvider, 
   return decimals[0]
 }
 
-export function subcallMatch(call: ParitySubCall, liquidationCall: ParitySubCall) {
-  return _.isEqual(liquidationCall.traceAddress, call.traceAddress.slice(0, liquidationCall.traceAddress.length));
+export function subcallMatch(call: ParitySubCall, targetCallTraceAddress: Array<number>): boolean {
+  return _.isEqual(targetCallTraceAddress, call.traceAddress.slice(0, targetCallTraceAddress.length));
+}
+
+export function checkCallForSignatures(call: ParitySubCallWithRevert, signatures: Array<string>): boolean {
+  if (call.action.input === undefined) {
+    return false
+  }
+  return _.some(signatures, signature => call.action.input.startsWith(signature))
+}
+
+export function getSigHashes(contractInterface: Interface, functionNames: Array<string>): Array<string> {
+  return _.map(functionNames, functionName => contractInterface.getSighash(functionName))
 }

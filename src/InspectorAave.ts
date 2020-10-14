@@ -1,106 +1,133 @@
-import { Contract, providers } from 'ethers'
+import { BigNumber, Contract, providers } from 'ethers'
 import * as _ from "lodash";
 import { Interface } from "ethers/lib/utils";
 
-import { BlockData } from "./BlockData";
-import { TokenTracker } from "./TokenTracker";
-import { subcallMatch } from "./utils";
+import { getSigHashes, subcallMatch } from "./utils";
 import { Inspector } from "./Inspector";
-import { ERC20_ABI } from "./abi";
-import { LENDING_POOL_ADDRESS } from "./addresses";
-import { LiquidationDetails, LiquidationOffer, LiquidationTransactions } from "./types";
+import { ERC20_ABI, AAVE_LENDING_POOL_ABI, AAVE_LENDING_POOL_CORE_ABI } from "./abi";
+import { LENDING_POOL_ADDRESS, LENDING_POOL_CORE_ADDRESS } from "./addresses";
+import {
+  ACTION_PROVIDER,
+  ACTION_TYPE,
+  LiquidationAction, LiquidationOffer,
+  ParitySubCallWithRevert,
+  SpecificAction,
+  STATUS
+} from "./types";
 
 export class InspectorAave extends Inspector {
-  private static AAVE_LENDING_POOL_ABI = [{"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "_reserve", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_user", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "_amount", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_borrowRateMode", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_borrowRate", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_originationFee", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_borrowBalanceIncrease", "type": "uint256"}, {"indexed": true, "internalType": "uint16", "name": "_referral", "type": "uint16"}, {"indexed": false, "internalType": "uint256", "name": "_timestamp", "type": "uint256"}], "name": "Borrow", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "_reserve", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_user", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "_amount", "type": "uint256"}, {"indexed": true, "internalType": "uint16", "name": "_referral", "type": "uint16"}, {"indexed": false, "internalType": "uint256", "name": "_timestamp", "type": "uint256"}], "name": "Deposit", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "_target", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_reserve", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "_amount", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_totalFee", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_protocolFee", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_timestamp", "type": "uint256"}], "name": "FlashLoan", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "_collateral", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_reserve", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_user", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "_purchaseAmount", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_liquidatedCollateralAmount", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_accruedBorrowInterest", "type": "uint256"}, {"indexed": false, "internalType": "address", "name": "_liquidator", "type": "address"}, {"indexed": false, "internalType": "bool", "name": "_receiveAToken", "type": "bool"}, {"indexed": false, "internalType": "uint256", "name": "_timestamp", "type": "uint256"}], "name": "LiquidationCall", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "_collateral", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_reserve", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_user", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "_feeLiquidated", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_liquidatedCollateralForFee", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_timestamp", "type": "uint256"}], "name": "OriginationFeeLiquidated", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "_reserve", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_user", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "_newStableRate", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_borrowBalanceIncrease", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_timestamp", "type": "uint256"}], "name": "RebalanceStableBorrowRate", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "_reserve", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_user", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "_amount", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_timestamp", "type": "uint256"}], "name": "RedeemUnderlying", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "_reserve", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_user", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_repayer", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "_amountMinusFees", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_fees", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_borrowBalanceIncrease", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_timestamp", "type": "uint256"}], "name": "Repay", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "_reserve", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_user", "type": "address"}], "name": "ReserveUsedAsCollateralDisabled", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "_reserve", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_user", "type": "address"}], "name": "ReserveUsedAsCollateralEnabled", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "_reserve", "type": "address"}, {"indexed": true, "internalType": "address", "name": "_user", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "_newRateMode", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_newRate", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_borrowBalanceIncrease", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "_timestamp", "type": "uint256"}], "name": "Swap", "type": "event"}, {"constant": true, "inputs": [], "name": "LENDINGPOOL_REVISION", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "payable": false, "stateMutability": "view", "type": "function"}, {"constant": true, "inputs": [], "name": "UINT_MAX_VALUE", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "payable": false, "stateMutability": "view", "type": "function"}, {"constant": true, "inputs": [], "name": "addressesProvider", "outputs": [{"internalType": "contract LendingPoolAddressesProvider", "name": "", "type": "address"}], "payable": false, "stateMutability": "view", "type": "function"}, {"constant": false, "inputs": [{"internalType": "address", "name": "_reserve", "type": "address"}, {"internalType": "uint256", "name": "_amount", "type": "uint256"}, {"internalType": "uint256", "name": "_interestRateMode", "type": "uint256"}, {"internalType": "uint16", "name": "_referralCode", "type": "uint16"}], "name": "borrow", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function"}, {"constant": true, "inputs": [], "name": "core", "outputs": [{"internalType": "contract LendingPoolCore", "name": "", "type": "address"}], "payable": false, "stateMutability": "view", "type": "function"}, {"constant": true, "inputs": [], "name": "dataProvider", "outputs": [{"internalType": "contract LendingPoolDataProvider", "name": "", "type": "address"}], "payable": false, "stateMutability": "view", "type": "function"}, {"constant": false, "inputs": [{"internalType": "address", "name": "_reserve", "type": "address"}, {"internalType": "uint256", "name": "_amount", "type": "uint256"}, {"internalType": "uint16", "name": "_referralCode", "type": "uint16"}], "name": "deposit", "outputs": [], "payable": true, "stateMutability": "payable", "type": "function"}, {"constant": false, "inputs": [{"internalType": "address", "name": "_receiver", "type": "address"}, {"internalType": "address", "name": "_reserve", "type": "address"}, {"internalType": "uint256", "name": "_amount", "type": "uint256"}, {"internalType": "bytes", "name": "_params", "type": "bytes"}], "name": "flashLoan", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function"}, {"constant": true, "inputs": [{"internalType": "address", "name": "_reserve", "type": "address"}], "name": "getReserveConfigurationData", "outputs": [{"internalType": "uint256", "name": "ltv", "type": "uint256"}, {"internalType": "uint256", "name": "liquidationThreshold", "type": "uint256"}, {"internalType": "uint256", "name": "liquidationBonus", "type": "uint256"}, {"internalType": "address", "name": "interestRateStrategyAddress", "type": "address"}, {"internalType": "bool", "name": "usageAsCollateralEnabled", "type": "bool"}, {"internalType": "bool", "name": "borrowingEnabled", "type": "bool"}, {"internalType": "bool", "name": "stableBorrowRateEnabled", "type": "bool"}, {"internalType": "bool", "name": "isActive", "type": "bool"}], "payable": false, "stateMutability": "view", "type": "function"}, {"constant": true, "inputs": [{"internalType": "address", "name": "_reserve", "type": "address"}], "name": "getReserveData", "outputs": [{"internalType": "uint256", "name": "totalLiquidity", "type": "uint256"}, {"internalType": "uint256", "name": "availableLiquidity", "type": "uint256"}, {"internalType": "uint256", "name": "totalBorrowsStable", "type": "uint256"}, {"internalType": "uint256", "name": "totalBorrowsVariable", "type": "uint256"}, {"internalType": "uint256", "name": "liquidityRate", "type": "uint256"}, {"internalType": "uint256", "name": "variableBorrowRate", "type": "uint256"}, {"internalType": "uint256", "name": "stableBorrowRate", "type": "uint256"}, {"internalType": "uint256", "name": "averageStableBorrowRate", "type": "uint256"}, {"internalType": "uint256", "name": "utilizationRate", "type": "uint256"}, {"internalType": "uint256", "name": "liquidityIndex", "type": "uint256"}, {"internalType": "uint256", "name": "variableBorrowIndex", "type": "uint256"}, {"internalType": "address", "name": "aTokenAddress", "type": "address"}, {"internalType": "uint40", "name": "lastUpdateTimestamp", "type": "uint40"}], "payable": false, "stateMutability": "view", "type": "function"}, {"constant": true, "inputs": [], "name": "getReserves", "outputs": [{"internalType": "address[]", "name": "", "type": "address[]"}], "payable": false, "stateMutability": "view", "type": "function"}, {"constant": true, "inputs": [{"internalType": "address", "name": "_user", "type": "address"}], "name": "getUserAccountData", "outputs": [{"internalType": "uint256", "name": "totalLiquidityETH", "type": "uint256"}, {"internalType": "uint256", "name": "totalCollateralETH", "type": "uint256"}, {"internalType": "uint256", "name": "totalBorrowsETH", "type": "uint256"}, {"internalType": "uint256", "name": "totalFeesETH", "type": "uint256"}, {"internalType": "uint256", "name": "availableBorrowsETH", "type": "uint256"}, {"internalType": "uint256", "name": "currentLiquidationThreshold", "type": "uint256"}, {"internalType": "uint256", "name": "ltv", "type": "uint256"}, {"internalType": "uint256", "name": "healthFactor", "type": "uint256"}], "payable": false, "stateMutability": "view", "type": "function"}, {"constant": true, "inputs": [{"internalType": "address", "name": "_reserve", "type": "address"}, {"internalType": "address", "name": "_user", "type": "address"}], "name": "getUserReserveData", "outputs": [{"internalType": "uint256", "name": "currentATokenBalance", "type": "uint256"}, {"internalType": "uint256", "name": "currentBorrowBalance", "type": "uint256"}, {"internalType": "uint256", "name": "principalBorrowBalance", "type": "uint256"}, {"internalType": "uint256", "name": "borrowRateMode", "type": "uint256"}, {"internalType": "uint256", "name": "borrowRate", "type": "uint256"}, {"internalType": "uint256", "name": "liquidityRate", "type": "uint256"}, {"internalType": "uint256", "name": "originationFee", "type": "uint256"}, {"internalType": "uint256", "name": "variableBorrowIndex", "type": "uint256"}, {"internalType": "uint256", "name": "lastUpdateTimestamp", "type": "uint256"}, {"internalType": "bool", "name": "usageAsCollateralEnabled", "type": "bool"}], "payable": false, "stateMutability": "view", "type": "function"}, {"constant": false, "inputs": [{"internalType": "contract LendingPoolAddressesProvider", "name": "_addressesProvider", "type": "address"}], "name": "initialize", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function"}, {"constant": false, "inputs": [{"internalType": "address", "name": "_collateral", "type": "address"}, {"internalType": "address", "name": "_reserve", "type": "address"}, {"internalType": "address", "name": "_user", "type": "address"}, {"internalType": "uint256", "name": "_purchaseAmount", "type": "uint256"}, {"internalType": "bool", "name": "_receiveAToken", "type": "bool"}], "name": "liquidationCall", "outputs": [], "payable": true, "stateMutability": "payable", "type": "function"}, {"constant": true, "inputs": [], "name": "parametersProvider", "outputs": [{"internalType": "contract LendingPoolParametersProvider", "name": "", "type": "address"}], "payable": false, "stateMutability": "view", "type": "function"}, {"constant": false, "inputs": [{"internalType": "address", "name": "_reserve", "type": "address"}, {"internalType": "address", "name": "_user", "type": "address"}], "name": "rebalanceStableBorrowRate", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function"}, {"constant": false, "inputs": [{"internalType": "address", "name": "_reserve", "type": "address"}, {"internalType": "address payable", "name": "_user", "type": "address"}, {"internalType": "uint256", "name": "_amount", "type": "uint256"}, {"internalType": "uint256", "name": "_aTokenBalanceAfterRedeem", "type": "uint256"}], "name": "redeemUnderlying", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function"}, {"constant": false, "inputs": [{"internalType": "address", "name": "_reserve", "type": "address"}, {"internalType": "uint256", "name": "_amount", "type": "uint256"}, {"internalType": "address payable", "name": "_onBehalfOf", "type": "address"}], "name": "repay", "outputs": [], "payable": true, "stateMutability": "payable", "type": "function"}, {"constant": false, "inputs": [{"internalType": "address", "name": "_reserve", "type": "address"}, {"internalType": "bool", "name": "_useAsCollateral", "type": "bool"}], "name": "setUserUseReserveAsCollateral", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function"}, {"constant": false, "inputs": [{"internalType": "address", "name": "_reserve", "type": "address"}], "name": "swapBorrowRateMode", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function"}]
-
   public lendingPoolContract: Contract
-  private liquidationSigHash: string;
-  private liquidationEventTopic: string;
+  private static lendingPoolLiquidationFunctionName = 'liquidationCall';
+  private lendingPoolLiquidationSigs: string;
+
+  private lendingPoolCoreContract: Contract;
+  private static lendingPoolCoreLiquidationCheckFunctionNames = ["getUserLastUpdate"]
+  private lendingPoolCoreLiquidationCheckSigs: string[];
 
   constructor(provider: providers.JsonRpcProvider) {
     super(provider);
-    this.lendingPoolContract = new Contract(LENDING_POOL_ADDRESS, InspectorAave.AAVE_LENDING_POOL_ABI, provider);
-    this.liquidationSigHash = this.lendingPoolContract.interface.getSighash(this.lendingPoolContract.interface.getFunction('liquidationCall'));
-    this.liquidationEventTopic = this.lendingPoolContract.interface.getEventTopic(this.lendingPoolContract.interface.getEvent('LiquidationCall'));
+
+    this.lendingPoolContract = new Contract(LENDING_POOL_ADDRESS, AAVE_LENDING_POOL_ABI, provider);
+    this.lendingPoolLiquidationSigs = this.lendingPoolContract.interface.getSighash(this.lendingPoolContract.interface.getFunction(InspectorAave.lendingPoolLiquidationFunctionName));
+
+    this.lendingPoolCoreContract = new Contract(LENDING_POOL_CORE_ADDRESS, AAVE_LENDING_POOL_CORE_ABI, provider);
+    this.lendingPoolCoreLiquidationCheckSigs = getSigHashes(this.lendingPoolCoreContract.interface, InspectorAave.lendingPoolCoreLiquidationCheckFunctionNames)
   }
 
-  static async create(provider: providers.JsonRpcProvider) {
+  static async create(provider: providers.JsonRpcProvider): Promise<InspectorAave> {
     return new InspectorAave(provider)
   }
 
-  async inspect(blockData: BlockData): Promise<Array<LiquidationTransactions>> {
-    const result = new Array<LiquidationTransactions>()
+  async inspect(calls: Array<ParitySubCallWithRevert>): Promise<Array<SpecificAction>> {
+    const result = new Array<SpecificAction>()
 
-    const liquidateTransactionHashes = _.chain(blockData.logs)
-      .filter(log =>
-        log.address === LENDING_POOL_ADDRESS && log.topics[0] === this.liquidationEventTopic)
-      .map("transactionHash")
-      .uniq()
-      .value()
+    const unknownCalls = _.clone(calls)
+    const liquidationCalls = _.filter(unknownCalls, (call) =>
+      call.action.to === LENDING_POOL_ADDRESS.toLowerCase() && call.action.input.startsWith(this.lendingPoolLiquidationSigs))
+
     const erc20Contract = new Interface(ERC20_ABI);
 
-    for (const liquidateTransactionHash of liquidateTransactionHashes) {
-      const transaction = await this.provider.getTransaction(liquidateTransactionHash)
-      const transactionReceipt = await this.provider.getTransactionReceipt(liquidateTransactionHash)
+    for (const liquidationCall of liquidationCalls) {
+      const parsedLiquidationCall = this.lendingPoolContract.interface.parseTransaction({data: liquidationCall.action.input});
 
-      const transactionCalls = _.filter(blockData.calls, (call) =>
-        call.transactionHash === liquidateTransactionHash)
+      const subCallsOfLiquidation = _.remove(unknownCalls, call => {
+        return call.transactionHash === liquidationCall.transactionHash &&
+          subcallMatch(call, liquidationCall.traceAddress)
+      })
 
-      const liquidationCalls = _.filter(transactionCalls, (call) =>
-        call.action.to === LENDING_POOL_ADDRESS.toLowerCase() && call.action.input.startsWith(this.liquidationSigHash))
+      const reserve: string = parsedLiquidationCall.args._reserve.toLowerCase()
+      const collateral: string = parsedLiquidationCall.args._collateral.toLowerCase()
 
-      if (liquidationCalls.length === 0) {
-        console.error("Mismatch between call & logs")
+      const ZERO = BigNumber.from(0);
+      const liquidationOffer: LiquidationOffer = {
+        sourceToken: reserve,
+        destAmount: ZERO,
+        sourceAmount: ZERO,
+        destToken: collateral,
+        liquidationDetails: parsedLiquidationCall.args._user
+      }
+
+      if (liquidationCall.reverted) {
+        result.push({
+          provider: ACTION_PROVIDER.AAVE,
+          type: ACTION_TYPE.LIQUIDATION,
+          actionCalls: subCallsOfLiquidation,
+          transactionHash: liquidationCall.transactionHash,
+          subcall: liquidationCall,
+          status: STATUS.REVERTED,
+          liquidation: liquidationOffer
+        })
         continue
       }
-      const tokenTrackerAll = TokenTracker.createFromBlockData(liquidateTransactionHash, [], blockData)
 
-      const liquidations = new Array<LiquidationDetails>();
-      for (const liquidationCall of liquidationCalls) {
-        let parsedLiquidationCall = this.lendingPoolContract.interface.parseTransaction({data: liquidationCall.action.input});
+      const reserveCall = _.filter(subCallsOfLiquidation, call => {
+        return call.action.to === reserve && call.action.callType === "call"
+      });
+      const collateralCall = _.filter(subCallsOfLiquidation, call => {
+        return call.action.to === collateral && call.action.callType === "call"
+      });
+      const reserveTransferDecode = erc20Contract.parseTransaction({data: reserveCall[0].action.input});
+      const collateralTransferDecode = erc20Contract.parseTransaction({data: collateralCall[0].action.input});
 
-        const reserve: string = parsedLiquidationCall.args._reserve.toLowerCase()
-        const collateral: string = parsedLiquidationCall.args._collateral.toLowerCase()
+      liquidationOffer.destAmount = collateralTransferDecode.args.value
+      liquidationOffer.sourceAmount = reserveTransferDecode.args.value
 
-        const subCallsOfLiquidation = _.filter(blockData.calls, call => {
-          return call.transactionHash === liquidationCall.transactionHash &&
-            subcallMatch(call, liquidationCall)
-        })
-        const reserveCall = _.filter(subCallsOfLiquidation, call => {
-          return call.action.to === reserve && call.action.callType === "call"
-        });
-        const collateralCall = _.filter(subCallsOfLiquidation, call => {
-          return call.action.to === collateral && call.action.callType === "call"
-        });
-        const reserveTransferDecode = erc20Contract.parseTransaction({data: reserveCall[0].action.input});
-        const collateralTransferDecode = erc20Contract.parseTransaction({data: collateralCall[0].action.input});
+      const action: LiquidationAction = {
+        provider: ACTION_PROVIDER.AAVE,
+        type: ACTION_TYPE.LIQUIDATION,
+        actionCalls: subCallsOfLiquidation,
+        transactionHash: liquidationCall.transactionHash,
+        subcall: liquidationCall,
+        status: STATUS.SUCCESS,
+        liquidation: liquidationOffer
+      };
+      result.push(action)
+    }
 
-        const offer: LiquidationOffer = {
-          sourceToken: reserve,
-          sourceAmount: reserveTransferDecode.args.value,
-          destToken: collateral,
-          destAmount: collateralTransferDecode.args.value,
-          source: "aave",
-          liquidationDetails: parsedLiquidationCall.args._user
-        };
+    if (liquidationCalls.length > 0) {
+      return result
+    }
 
-        const tokenTracker = new TokenTracker(subCallsOfLiquidation);
-        liquidations.push({
-          parsedLiquidationCall,
-          offer,
-          liquidationCall,
-          tokenTracker,
-        })
-      }
-      result.push(
-        {
-          transaction,
-          transactionReceipt,
-          tokenTracker: tokenTrackerAll,
-          liquidations,
-          transactionCalls,
-        }
-      )
+    // If we haven't found a liquidation call that happened, see if there was a preflight
+    const liquidationPreflightCalls = _.filter(unknownCalls, (call) =>
+      ((call.action.to === LENDING_POOL_ADDRESS.toLowerCase() && call.action.input.startsWith("0xbf92857c")) ||
+        (call.action.to === LENDING_POOL_CORE_ADDRESS.toLowerCase() && call.action.input.startsWith("0x66d103f3")
+        )))  // getUserAccountData
+
+    for (const liquidationPreflightCall of liquidationPreflightCalls) {
+      const subCallsOfLiquidationPreflight = _.remove(unknownCalls, call => {
+        return call.transactionHash === liquidationPreflightCall.transactionHash &&
+          subcallMatch(call, liquidationPreflightCall.traceAddress)
+      })
+
+      result.push({
+        provider: ACTION_PROVIDER.AAVE,
+        type: ACTION_TYPE.LIQUIDATION,
+        actionCalls: subCallsOfLiquidationPreflight,
+        transactionHash: liquidationPreflightCall.transactionHash,
+        subcall: liquidationPreflightCall,
+        status: STATUS.CHECKED,
+      })
     }
     return result
   }

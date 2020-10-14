@@ -8,6 +8,7 @@ import { DEXQuery} from "./DEXQuery";
 import { ERC20_ABI } from "./abi";
 import { WETH } from "./addresses";
 import { ParitySubCallWithRevert } from "./types";
+import { checkCallForSignatures } from "./utils";
 
 export interface TransferSimplified {
   from: string;
@@ -15,11 +16,12 @@ export interface TransferSimplified {
   token: string;
   value: BigNumber;
 }
+interface BalancesByToken {
+  [tokenAddress: string]: BigNumber
+}
 
-export interface BalancesByHolder {
-  [holderAddress: string]: {
-    [tokenAddress: string]: BigNumber
-  }
+export interface BalancesByHolderToken {
+  [holderAddress: string]: BalancesByToken
 }
 
 const FUNCTION_SIG_TRANSFER_FROM = '0x23b872dd';
@@ -45,19 +47,19 @@ export class TokenTracker {
     return this._transferSubCalls;
   }
 
-  get balancesByHolder(): BalancesByHolder {
+  get balancesByHolder(): BalancesByHolderToken {
     return this._balancesByHolder;
   }
 
   private _transferSubCalls: TransferSimplified[];
-  private _balancesByHolder: BalancesByHolder;
+  private _balancesByHolder: BalancesByHolderToken;
 
   constructor(calls: Array<ParitySubCallWithRevert>) {
     this._transferSubCalls = TokenTracker.extractTransfersFromSubcalls(calls)
     this._balancesByHolder = TokenTracker.getBalancesByHolder(this._transferSubCalls);
   }
 
-  static createFromBlockData(transactionHash: string, traceAddress: Array<number>, blockData: BlockData) {
+  static createFromBlockData(transactionHash: string, traceAddress: Array<number>, blockData: BlockData): TokenTracker {
     return new TokenTracker(_.filter(blockData.calls, call => call.transactionHash === transactionHash))
   }
 
@@ -66,8 +68,7 @@ export class TokenTracker {
       .filter(call =>
         !call.reverted && call.type === 'call' &&
         (
-          call.action.value !== "0x0" ||
-          _.some(TokenTracker.TOKEN_MOVEMENT_SIGNATURES, sig => call.action.input.startsWith(sig))
+          call.action.value !== "0x0" || checkCallForSignatures(call, TokenTracker.TOKEN_MOVEMENT_SIGNATURES)
         )
       )
       .map(transferCall => {
@@ -122,7 +123,7 @@ export class TokenTracker {
       .value();
   }
 
-  print() {
+  print(): void {
     if (_.size(this._balancesByHolder) === 0) {
       console.log("Empty")
     } else {
@@ -130,7 +131,7 @@ export class TokenTracker {
     }
   }
 
-  public static printBalancesByHolder(tokenBalancesByHolder: BalancesByHolder) {
+  public static printBalancesByHolder(tokenBalancesByHolder: BalancesByHolderToken): void {
     const table = []
     for (const holderAddress in tokenBalancesByHolder) {
       table.push({})
@@ -145,8 +146,8 @@ export class TokenTracker {
     printTable(table.slice(1))
   }
 
-  public static getBalancesByHolder(tokenTransferLogs: TransferSimplified[]) {
-    const tokenBalancesByHolder: BalancesByHolder = {}
+  public static getBalancesByHolder(tokenTransferLogs: TransferSimplified[]): BalancesByHolderToken {
+    const tokenBalancesByHolder: BalancesByHolderToken = {}
     for (const tokenTransfer of tokenTransferLogs) {
 
       if (tokenBalancesByHolder[tokenTransfer.from] === undefined) tokenBalancesByHolder[tokenTransfer.from] = {}
@@ -159,7 +160,7 @@ export class TokenTracker {
     return tokenBalancesByHolder;
   }
 
-  async getProfitsInToken(dexQuery: DEXQuery, destinationToken: string) {
+  async getProfitsInToken(dexQuery: DEXQuery, destinationToken: string): Promise<BalancesByToken> {
     const response: { [holder: string]: BigNumber } = {}
     await Promise.all(_.map(this.balancesByHolder, async (a, holderAddress) => {
       let total = BigNumber.from(0)

@@ -1,6 +1,6 @@
 import { providers } from "ethers";
 import { BlockData } from "./BlockData";
-import { LiquidationTransactions } from "./types";
+import { ParitySubCallWithRevert, SpecificAction } from "./types";
 
 export abstract class Inspector {
   protected provider: providers.JsonRpcProvider;
@@ -9,5 +9,9 @@ export abstract class Inspector {
     this.provider = provider;
   }
 
-  abstract async inspect(blockData: BlockData): Promise<Array<LiquidationTransactions>>;
+  async inspectViaBlockDataFilter(blockData: BlockData, transactionHash: string | undefined = undefined, traceAddress: Array<number> = []): Promise<Array<SpecificAction>> {
+    return this.inspect(blockData.getFilteredCalls(transactionHash, traceAddress))
+  }
+
+  abstract async inspect(calls: Array<ParitySubCallWithRevert>): Promise<Array<SpecificAction>>;
 }

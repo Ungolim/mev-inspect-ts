@@ -1,0 +1,24 @@
+// UNCOMMENT ONE OF THE BLOCK NUMBERS BELOW:
+// Interesting Aave
+// const blockNumber = 10906338; // Very profitable
+// const blockNumber = 10907368; // Small profit
+// const blockNumber = 10906339;
+// const blockNumber = 10907241;
+// const blockNumber = 10920674; // one-way liquidation
+// const blockNumber = 10921074; // busy
+
+// const blockNumber = 11058319; // tester
+
+// Interesting All
+// const blockNumber = 10971399;
+
+// Has a nice sandwich at 506 gwei
+// const blockNumber = 10907241;
+
+
+// Compound Liquidation Block
+// const blockNumber = 10974735;
+
+// const blockNumber = 11061120; // crazy num of actions
+
+// processBlock(blockNumber)
