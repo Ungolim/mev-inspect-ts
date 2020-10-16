@@ -3,44 +3,55 @@ import { ConnectionInfo } from "@ethersproject/web";
 
 import { BlockData } from "./BlockData";
 import { InspectorAave } from "./InspectorAave";
-import { InspectorAll } from "./InspectorAll";
-import { Evaluator } from "./Evaluator";
+import { InspectorUniswap } from "./InspectorUniswap";
+import { InspectorGeneric } from "./InspectorGeneric";
+import { ConsumerAsciiReport } from "./ConsumerReport";
+import { ConsumerInfluxdb } from "./ConsumerInfluxdb";
+import { Processor } from "./Processor";
 
-// To hit an old block, you will need an archive node:
 const ETHEREUM_URL = process.env.ETHEREUM_URL || "http://127.0.0.1:8545";
+const INFLUX_DB = process.env.INFLUX_DB || 'mev';
+const INFLUX_HOST = process.env.INFLUX_HOST || 'localhost';
+const MEASUREMENT = process.env.MEASUREMENT || 'gasUsed';
+
+const BLOCK_START = parseInt(process.env.BLOCK_START || '11000000');
+const BLOCK_END = process.env.BLOCK_END;
+
+
 const connection: ConnectionInfo = {url: ETHEREUM_URL}
 
 const provider = new providers.JsonRpcProvider(connection, {chainId: 1, ensAddress: '', name: 'mainnet'})
 
 async function doStuff() {
-  // let blockData = await BlockData.createFromBlockNumber(provider, "latest");
+  const processor = new Processor(
+    [
+      await InspectorAave.create(provider),
+      await InspectorUniswap.create(provider),
+      await InspectorGeneric.create(provider)
+    ],
+    [
+      new ConsumerAsciiReport(),
+      new ConsumerInfluxdb(INFLUX_HOST, INFLUX_DB, MEASUREMENT)
+    ]
+  );
 
-  // UNCOMMENT ONE OF THE BLOCK NUMBERS BELOW:
-  // Interesting Aave
-  // const blockNumber = 10906338; // Very profitable
-  // const blockNumber = 10907368; // Small profit
-  // const blockNumber = 10906339;
-  // const blockNumber = 10907241;
-  // const blockNumber = 10920674; // one-way liquidation
-  // const blockNumber = 10921074; // busy
+  const blockEnd = (BLOCK_END === undefined) ?
+    await provider.getBlockNumber() :
+    parseInt(BLOCK_END)
 
-  // Interesting All
-  // const blockNumber = 10971399;
 
-  // Compound Liquidation Block
-  const blockNumber = 10974735;
 
-  const blockData = await BlockData.createFromBlockNumber(provider, blockNumber);
-
-  // UNCOMMENT ONE OF THE INSPECTORS
-  // const inspector = await InspectorAave.create(provider);
-  const inspector = new InspectorAll(provider);
-
-  const transactions = await inspector.inspect(blockData);
-
-  const evaluator = new Evaluator(provider)
-  await evaluator.evaluate(blockData, transactions)
+  for (let blockNumber = BLOCK_START; blockNumber < blockEnd; blockNumber++) {
+    const blockData = await BlockData.createFromBlockNumber(provider, blockNumber, false);
+    await processor.process(blockData)
+  }
 }
 
-doStuff();
+doStuff().then( () => {
+  console.log("Finished")
+  process.exit(0)
+}).catch( (e) => {
+  console.error("Error", e)
+  process.exit(1)
+})
 

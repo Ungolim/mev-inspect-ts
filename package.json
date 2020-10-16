@@ -4,22 +4,24 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "npx ts-node --project tsconfig.json src/index.ts",
+    "lint": "npx eslint src"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "console-table-printer": "^2.4.8",
     "ethers": "^5.0.14",
+    "influx": "^5.6.3",
     "lodash": "^4.17.20",
     "ts-node": "^9.0.0",
     "typescript": "^4.0.3"
   },
   "devDependencies": {
     "@types/lodash": "^4.14.161",
-    "@types/node": "^14.11.1"
-  },
-  "scripts": {
-    "start": "npx ts-node --project tsconfig.json src/index.ts"
+    "@types/node": "^14.11.1",
+    "@typescript-eslint/eslint-plugin": "^4.4.1",
+    "@typescript-eslint/parser": "^4.4.1",
+    "eslint": "^7.11.0"
   }
 }

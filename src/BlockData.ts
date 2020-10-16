@@ -1,16 +1,25 @@
-import { providers } from "ethers";
+import { BigNumber, providers } from "ethers";
+import { BlockWithTransactions } from "@ethersproject/abstract-provider";
+
 import * as _ from "lodash";
 import fs from "fs";
 import { ParitySubCall, ParitySubCallWithRevert } from "./types";
 import path from "path";
+import { subcallMatch } from "./utils";
 
 export class BlockData {
   public calls: Array<ParitySubCallWithRevert>;
-  public block: providers.Block;
+  public block: BlockWithTransactions;
   public logs: Array<providers.Log>;
+  public transactionHashes: Array<string>;
+  public transactionByHash: {
+    [hash: string]: providers.TransactionResponse
+  };
+  public receiptByHash: {
+    [hash: string]: providers.TransactionReceipt
+  };
 
-  static getCacheDir() {
-    // path.normalize(`${__dirname}/..`)
+  static getCacheDir(): string {
     const cacheDir = process.env.CACHE_DIR || path.normalize(`${__dirname}/../cache`)
     if (!fs.existsSync(cacheDir)) {
       fs.mkdirSync(cacheDir, 0o755);
@@ -18,19 +27,24 @@ export class BlockData {
     return cacheDir
   }
 
+  private static revertErrorMessages = [
+    "Reverted",
+    "Bad instruction",
+    "Out of gas",
+    "Bad jump destination"
+  ]
+
   static decorateRevert(txTraces: Array<ParitySubCall>): Array<ParitySubCallWithRevert> {
     const revertTraceAddressScope = _.chain(txTraces)
       .filter(paritySubCall =>
-        paritySubCall.error === "Reverted"
+        _.some(BlockData.revertErrorMessages, errorMessage => errorMessage === paritySubCall.error)
       )
       .groupBy('transactionHash')
       .mapValues(revertedTraces => _.map(revertedTraces, 'traceAddress'))
       .value()
 
-    // console.log(revertTraceAddressScope)
-
     function isSubCallWithinRevertScope(paritySubCall: ParitySubCall) {
-      let revertedTraceAddresses = revertTraceAddressScope[paritySubCall.transactionHash];
+      const revertedTraceAddresses = revertTraceAddressScope[paritySubCall.transactionHash];
       if (revertedTraceAddresses === undefined) {
         return false
       }
@@ -48,38 +62,97 @@ export class BlockData {
     })
   }
 
-  constructor(block: providers.Block, rawSubCalls: Array<ParitySubCall>, logs: Array<providers.Log>) {
+  constructor(block: BlockWithTransactions, rawSubCalls: Array<ParitySubCall>, logs: Array<providers.Log>, receipts: Array<providers.TransactionReceipt>) {
     this.block = block
     this.calls = BlockData.decorateRevert(rawSubCalls)
+    this.transactionHashes = _.chain(rawSubCalls)
+      .filter(subcall => subcall.type !== "reward")
+      .map("transactionHash")
+      .uniq()
+      .value()
     this.logs = logs
+
+    this.transactionByHash = _.keyBy(block.transactions, "hash")
+    this.receiptByHash = _.keyBy(receipts, "transactionHash")
   }
 
-  static async createFromBlockNumber(provider: providers.JsonRpcProvider, blockNumberOrTag: providers.BlockTag, forceRefresh = false) {
-    const block = await provider.getBlock(blockNumberOrTag);
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  private static jsonBigNumberReviver(key: any, value: any)
+  {
+    if(typeof value == "string" && value.startsWith("bn:"))
+    {
+      return BigNumber.from(value.replace("bn:", ""));
+    }
+    return value;  // < here is where un-modified key/value pass though
+  }
 
+  private static jsonBigNumberReplacer(key: any, value: any) {
+    if (value && value.constructor === Object && value.type === "BigNumber") {
+      return "bn:" + value.hex;
+    } else {
+      return value;
+    }
+  }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+
+  static async createFromBlockNumber(provider: providers.JsonRpcProvider, blockNumberOrTag: providers.BlockTag, forceRefresh = false): Promise<BlockData> {
     const cacheDir = BlockData.getCacheDir()
-    const txTraceFile = `${cacheDir}/${block.number}.json`;
-    const logsFile = `${cacheDir}/${block.number}.logs`;
+    const cacheFile = `${cacheDir}/${blockNumberOrTag}.json`;
 
-    let txTraces: Array<ParitySubCall>;
-    if (!forceRefresh && fs.existsSync(txTraceFile)) {
-      txTraces = JSON.parse(fs.readFileSync(txTraceFile).toString())
-    } else {
-      console.log("downloading traces: " + txTraceFile)
-      txTraces = await provider.send("trace_block", [`0x${block.number.toString(16)}`]);
-      fs.writeFileSync(txTraceFile, JSON.stringify(txTraces, null, 2))
+    if (
+      !_.isNumber(blockNumberOrTag) ||
+      (!forceRefresh && fs.existsSync(cacheFile))
+    ) {
+      const {
+        block,
+        receipts,
+        calls,
+        logs
+      } = JSON.parse(fs.readFileSync(cacheFile).toString(), BlockData.jsonBigNumberReviver)
+      return new BlockData(block, calls, logs, receipts)
     }
 
-    let logs: providers.Log[]
-    if (!forceRefresh && fs.existsSync(logsFile)) {
-      logs = JSON.parse(fs.readFileSync(logsFile).toString())
-    } else {
-      console.log("downloading logs: " + logsFile)
-      logs = await provider.getLogs({
-        blockHash: block.hash
-      })
-      fs.writeFileSync(logsFile, JSON.stringify(logs, null, 2))
+    const block = await provider.getBlockWithTransactions(blockNumberOrTag)
+
+    const blockRpcArgument = [`0x${block.number.toString(16)}`];
+    // Node needs tracing enabled
+    const calls = await provider.send("trace_block", blockRpcArgument);
+
+    const logs: providers.Log[] = await provider.getLogs({
+      blockHash: block.hash
+    })
+
+    // Node needs parity RPC module enabled
+    const receiptsRaw: Array<providers.TransactionReceipt> = await provider.send("parity_getBlockReceipts", blockRpcArgument)
+
+    const receipts = _.map(receiptsRaw, BlockData.convertReceipt)
+
+    fs.writeFileSync(cacheFile, JSON.stringify({
+      block,
+      receipts,
+      calls,
+      logs,
+    }, BlockData.jsonBigNumberReplacer, 2))
+    return new BlockData(block, calls, logs, receipts)
+  }
+
+  // parity_getBlockReceipts is way more efficient, but doesn't properly return gasUsed as a BigNumber
+  // eslint-disable-next-line
+  static convertReceipt(rawReceipt: any): providers.TransactionReceipt {
+    return {
+      ...rawReceipt,
+      gasUsed: BigNumber.from(rawReceipt.gasUsed)
     }
-    return new BlockData(block, txTraces, logs)
+  }
+
+  getFilteredCalls(transactionHash: string | undefined = undefined, traceAddress: Array<number> | undefined = undefined): Array<ParitySubCallWithRevert> {
+    let result = _.clone(this.calls)
+    if (transactionHash !== undefined) {
+      result = _.filter(result, (call) => call.transactionHash === transactionHash)
+    }
+    if (traceAddress !== undefined && !_.isEqual(traceAddress, [])) {
+      result = _.filter(result, (call) => subcallMatch(call, traceAddress))
+    }
+    return result
   }
 }

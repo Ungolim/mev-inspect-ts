@@ -10,7 +10,7 @@ export type DEX = 'UniswapV2' | 'UniswapV1' | 'identity' | ''
 
 export interface DexResult {
   dex: DEX;
-  details: any;
+  details: Array<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   amount: BigNumber;
 }
 
@@ -36,7 +36,7 @@ export class DEXQuery {
     if (sourceToken.toLowerCase() === destToken.toLowerCase()) {
       return {
         amount: amount,
-        details: 'identity',
+        details: ['identity'],
         dex: 'identity'
       }
     }
