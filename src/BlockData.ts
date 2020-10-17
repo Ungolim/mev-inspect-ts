@@ -1,6 +1,5 @@
 import { BigNumber, providers } from "ethers";
 import { BlockWithTransactions } from "@ethersproject/abstract-provider";
-
 import * as _ from "lodash";
 import fs from "fs";
 import { ParitySubCall, ParitySubCallWithRevert } from "./types";
