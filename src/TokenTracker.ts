@@ -5,8 +5,8 @@ import { printTable } from 'console-table-printer';
 
 import { BlockData } from "./BlockData";
 import { DEXQuery} from "./DEXQuery";
-import { ERC20_ABI } from "./abi";
-import { WETH } from "./addresses";
+import { ERC20_ABI } from "./config/abi";
+import { WETH } from "./config/addresses";
 import { ParitySubCallWithRevert } from "./types";
 import { checkCallForSignatures } from "./utils";
 

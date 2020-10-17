@@ -3,7 +3,7 @@ import * as _ from "lodash";
 import { Contract, providers } from "ethers";
 
 import { DexResult } from "./DEXQuery";
-import { ERC20_ABI } from "./abi";
+import { ERC20_ABI } from "./config/abi";
 import { ParitySubCall, ParitySubCallWithRevert } from "./types";
 import { Interface } from "ethers/lib/utils";
 

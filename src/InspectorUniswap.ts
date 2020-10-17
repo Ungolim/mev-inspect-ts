@@ -4,10 +4,10 @@ import { Interface } from "@ethersproject/abi";
 
 import { checkCallForSignatures, getSigHashes, subcallMatch } from "./utils";
 import { Inspector } from "./Inspector";
-import { LENDING_POOL_CORE_ADDRESS, SUSHISWAP_ROUTER_ADDRESS, UNISWAP_ROUTER_ADDRESS } from "./addresses";
+import { LENDING_POOL_CORE_ADDRESS, SUSHISWAP_ROUTER_ADDRESS, UNISWAP_ROUTER_ADDRESS } from "./config/addresses";
 import { ACTION_PROVIDER, ACTION_TYPE, ParitySubCallWithRevert, SpecificAction, STATUS, TradeAction } from "./types";
 import { TokenTracker } from "./TokenTracker";
-import { UNISWAP_PAIR_ABI, UNISWAP_ROUTER_ABI } from "./abi";
+import { UNISWAP_PAIR_ABI, UNISWAP_ROUTER_ABI } from "./config/abi";
 
 export class InspectorUniswap extends Inspector {
   public static sendingEthRouterFunctionNames = ["swapETHForExactTokens", "swapExactETHForTokens", "swapExactETHForTokensSupportingFeeOnTransferTokens"]

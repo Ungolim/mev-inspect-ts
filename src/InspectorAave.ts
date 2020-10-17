@@ -4,8 +4,8 @@ import { Interface } from "ethers/lib/utils";
 
 import { getSigHashes, subcallMatch } from "./utils";
 import { Inspector } from "./Inspector";
-import { ERC20_ABI, AAVE_LENDING_POOL_ABI, AAVE_LENDING_POOL_CORE_ABI } from "./abi";
-import { LENDING_POOL_ADDRESS, LENDING_POOL_CORE_ADDRESS } from "./addresses";
+import { ERC20_ABI, AAVE_LENDING_POOL_ABI, AAVE_LENDING_POOL_CORE_ABI } from "./config/abi";
+import { LENDING_POOL_ADDRESS, LENDING_POOL_CORE_ADDRESS } from "./config/addresses";
 import {
   ACTION_PROVIDER,
   ACTION_TYPE,
