@@ -36,6 +36,16 @@ export class ConsumerInfluxdb extends Consumer {
     });
   }
 
+  static async create(host: string, database: string, measurement: string) {
+    const influx = new InfluxDB({
+      host: host
+    });
+    if (!(await influx.getDatabaseNames()).includes(database)) {
+      await influx.createDatabase(database)
+    }
+    return new ConsumerInfluxdb(host, database, measurement);
+  }
+
   async dropDatabase(databaseName: string): Promise<void> {
     await this.influx.dropDatabase(databaseName)
     await this.influx.createDatabase(databaseName)

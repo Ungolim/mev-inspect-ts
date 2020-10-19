@@ -31,7 +31,7 @@ async function doStuff() {
     ],
     [
       new ConsumerAsciiReport(),
-      new ConsumerInfluxdb(INFLUX_HOST, INFLUX_DB, MEASUREMENT)
+      await ConsumerInfluxdb.create(INFLUX_HOST, INFLUX_DB, MEASUREMENT)
     ]
   );
 
