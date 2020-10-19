@@ -3,7 +3,7 @@ import { DEXQuery } from "./DEXQuery";
 import { ArbitrageProposal, LiquidationOffer, TransactionEvaluation } from "./types";
 import { providers } from "ethers";
 import { BlockData } from "./BlockData";
-import { WETH } from "./addresses";
+import { WETH } from "./config/addresses";
 
 export class Evaluator {
   private readonly provider: providers.JsonRpcProvider;
