@@ -17,7 +17,11 @@ npm install
 npm run start
 ```
 
-[philhawthorne/docker-influxdb-grafana Docker Container](https://github.com/philhawthorne/docker-influxdb-grafana) - Simple single-container service for InfluxDB + Grafana
+One this is done, you should be able to access Grafana via:
+
+http://127.0.0.1:3003/
+
+See: [philhawthorne/docker-influxdb-grafana Docker Container](https://github.com/philhawthorne/docker-influxdb-grafana) - Simple single-container service for InfluxDB + Grafana
 
 Environment variable configuration
 ==================================

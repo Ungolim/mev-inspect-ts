@@ -5,7 +5,7 @@ import { Interface } from "@ethersproject/abi";
 import { checkCallForSignatures, getSigHashes, subcallMatch } from "./utils";
 import { Inspector } from "./Inspector";
 import { LENDING_POOL_CORE_ADDRESS, SUSHISWAP_ROUTER_ADDRESS, UNISWAP_ROUTER_ADDRESS } from "./config/addresses";
-import { ACTION_PROVIDER, ACTION_TYPE, ParitySubCallWithRevert, SpecificAction, STATUS, TradeAction } from "./types";
+import { ACTION_PROVIDER, ACTION_TYPE, ParitySubCallWithRevert, SpecificAction, ACTION_STATUS, TradeAction } from "./types";
 import { TokenTracker } from "./TokenTracker";
 import { UNISWAP_PAIR_ABI, UNISWAP_ROUTER_ABI } from "./config/abi";
 
@@ -78,7 +78,7 @@ export class InspectorUniswap extends Inspector {
         actionCalls: subCallsOfTrade,
         transactionHash: tradeCall.transactionHash,
         subcall: tradeCall,
-        status: tradeCall.reverted ? STATUS.REVERTED : STATUS.SUCCESS,
+        status: tradeCall.reverted ? ACTION_STATUS.REVERTED : ACTION_STATUS.SUCCESS,
       };
 
       if (tradeCall.reverted) {
@@ -113,7 +113,7 @@ export class InspectorUniswap extends Inspector {
         actionCalls: subCallsOfTrade,
         transactionHash: directPairTradeCall.transactionHash,
         subcall: directPairTradeCall,
-        status: directPairTradeCall.reverted ? STATUS.REVERTED : STATUS.SUCCESS,
+        status: directPairTradeCall.reverted ? ACTION_STATUS.REVERTED : ACTION_STATUS.SUCCESS,
       };
       result.push(action)
     }
@@ -137,7 +137,7 @@ export class InspectorUniswap extends Inspector {
         actionCalls: subCallsOfCheckTrade,
         transactionHash: directPairCheckCall.transactionHash,
         subcall: directPairCheckCall,
-        status: STATUS.CHECKED,
+        status: ACTION_STATUS.CHECKED,
       };
       result.push(action)
     }

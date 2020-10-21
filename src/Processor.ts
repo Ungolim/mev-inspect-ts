@@ -10,10 +10,12 @@ import { InferTransactionType } from "./InferTransactionType";
 export class Processor {
   private readonly inspectors: Array<Inspector>;
   private readonly consumers: Array<Consumer>;
+  private readonly inferTransactionType: InferTransactionType;
 
   constructor(inspectors: Array<Inspector>, consumers: Array<Consumer>) {
     this.inspectors = inspectors;
     this.consumers = consumers;
+    this.inferTransactionType = new InferTransactionType();
   }
 
   async process(blockData: BlockData): Promise<void> {
@@ -34,7 +36,6 @@ export class Processor {
         specificActions.push(...actions)
       }
 
-      const inferTransactionType = new InferTransactionType();
       return {
         transactionHash,
         transaction: blockData.transactionByHash[transactionHash],
@@ -42,7 +43,7 @@ export class Processor {
         specificActions,
         calls,
         unknownCalls,
-        inferredType: inferTransactionType.infer(specificActions, calls)
+        inferredType: this.inferTransactionType.infer(specificActions, calls)
       }
     }));
   }
