@@ -5,7 +5,7 @@ import { BigNumber } from "ethers";
 import { Consumer } from "./Consumer";
 import { BlockData } from "./BlockData";
 import { bigNumberToDecimal } from "./utils";
-import { txTypeWithStatus, TransactionEvaluation, TRANSACTION_TYPE } from "./types";
+import { txTypeWithStatus, TransactionEvaluation, TRANSACTION_TYPE, TRANSACTION_STATUS } from "./types";
 
 export class ConsumerInfluxdb extends Consumer {
   private influx: InfluxDB;
@@ -29,7 +29,7 @@ export class ConsumerInfluxdb extends Consumer {
           tags: [
             'txType',
             'blockNumber',
-            'txSuccess'
+            'txStatus'
           ]
         },
       ]
@@ -82,7 +82,7 @@ export class ConsumerInfluxdb extends Consumer {
         measurement: this.measurement,
         tags: {
           txType: TRANSACTION_TYPE[txType.type],
-          txSuccess: `${txType.success}`,
+          txStatus: TRANSACTION_STATUS[txType.status],
           blockNumber: `${blockData.block.number}`
         },
         fields: {
@@ -101,12 +101,12 @@ export class ConsumerInfluxdb extends Consumer {
   // The display of Influx is awkward if you don't provide 0 points for missing data, the fill keeps going
   private generateZeroPoints(blockData: BlockData) {
     const zeroPoints = new Array<IPoint>()
-    for (const type in [TRANSACTION_TYPE.ARBITRAGE, TRANSACTION_TYPE.UKNOWN, TRANSACTION_TYPE.LIQUIDATION]) {
-      for (const txSuccess of ['true', 'false']) {
+    for (const type in [TRANSACTION_TYPE.UNKNOWN, TRANSACTION_TYPE.ARBITRAGE, TRANSACTION_TYPE.UNKNOWN, TRANSACTION_TYPE.LIQUIDATION]) {
+      for (const txStatus in [TRANSACTION_STATUS.UNKNOWN, TRANSACTION_STATUS.SUCCESS, TRANSACTION_STATUS.CHECKED]) {
         zeroPoints.push({
           timestamp: blockData.block.timestamp,
           measurement: this.measurement,
-          tags: {txType: TRANSACTION_TYPE[type], txSuccess, blockNumber: blockData.block.number.toString()},
+          tags: {txType: TRANSACTION_TYPE[type], txStatus: TRANSACTION_STATUS[txStatus], blockNumber: blockData.block.number.toString()},
           fields: {blockNumberField: blockData.block.number, gasUsed: 0, ethSpent: 0.0}
         })
       }

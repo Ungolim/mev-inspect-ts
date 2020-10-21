@@ -3,6 +3,7 @@ import { providers, BigNumber } from "ethers";
 import { DEX } from "./DEXQuery";
 
 export enum ACTION_PROVIDER {
+  UNCLASSIFIED,
   AAVE,
   COMPOUND,
   UNISWAP,
@@ -10,24 +11,34 @@ export enum ACTION_PROVIDER {
   CURVE,
   ZEROX,
   BALANCER,
+  KNOWN_BOT,
 }
 
 export enum ACTION_TYPE {
   TRANSFER,
   LIQUIDATION,
   TRADE,
+  KNOWN_BOT,
 }
 
-export enum STATUS {
+export enum ACTION_STATUS {
+  UNKNOWN,
   REVERTED,
   CHECKED,
-  SUCCESS
+  SUCCESS,
 }
 
 export enum TRANSACTION_TYPE {
-  UKNOWN,
+  UNKNOWN,
+  UNCLASSIFIED_BOT,
   ARBITRAGE,
   LIQUIDATION,
+}
+
+export enum TRANSACTION_STATUS {
+  UNKNOWN,
+  SUCCESS,
+  CHECKED,
 }
 
 export interface Action {
@@ -35,7 +46,7 @@ export interface Action {
   transactionHash: string;
   provider: ACTION_PROVIDER;
   type: ACTION_TYPE;
-  status: STATUS;
+  status: ACTION_STATUS;
   actionCalls: Array<ParitySubCallWithRevert>
 }
 
@@ -73,11 +84,11 @@ export interface TransferAction extends Action {
   transfer?: TransferDetails;
 }
 
-export type SpecificAction = LiquidationAction | TransferAction | TradeAction
+export type SpecificAction = LiquidationAction | TransferAction | TradeAction | Action
 
 export interface txTypeWithStatus {
   type: TRANSACTION_TYPE
-  success: boolean
+  status: TRANSACTION_STATUS
 }
 
 export interface TransactionEvaluation {

@@ -12,17 +12,20 @@ import {
   LiquidationAction, LiquidationOffer,
   ParitySubCallWithRevert,
   SpecificAction,
-  STATUS
+  ACTION_STATUS
 } from "./types";
 
 export class InspectorAave extends Inspector {
-  public lendingPoolContract: Contract
+  private static readonly ETH_RESERVE_ADDRESS = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+
+  private lendingPoolContract: Contract
   private static lendingPoolLiquidationFunctionName = 'liquidationCall';
   private lendingPoolLiquidationSigs: string;
 
   private lendingPoolCoreContract: Contract;
   private static lendingPoolCoreLiquidationCheckFunctionNames = ["getUserLastUpdate"]
   private lendingPoolCoreLiquidationCheckSigs: string[];
+  private erc20Interface: Interface;
 
   constructor(provider: providers.JsonRpcProvider) {
     super(provider);
@@ -32,6 +35,8 @@ export class InspectorAave extends Inspector {
 
     this.lendingPoolCoreContract = new Contract(LENDING_POOL_CORE_ADDRESS, AAVE_LENDING_POOL_CORE_ABI, provider);
     this.lendingPoolCoreLiquidationCheckSigs = getSigHashes(this.lendingPoolCoreContract.interface, InspectorAave.lendingPoolCoreLiquidationCheckFunctionNames)
+
+    this.erc20Interface = new Interface(ERC20_ABI);
   }
 
   static async create(provider: providers.JsonRpcProvider): Promise<InspectorAave> {
@@ -44,8 +49,6 @@ export class InspectorAave extends Inspector {
     const unknownCalls = _.clone(calls)
     const liquidationCalls = _.filter(unknownCalls, (call) =>
       call.action.to === LENDING_POOL_ADDRESS.toLowerCase() && call.action.input.startsWith(this.lendingPoolLiquidationSigs))
-
-    const erc20Contract = new Interface(ERC20_ABI);
 
     for (const liquidationCall of liquidationCalls) {
       const parsedLiquidationCall = this.lendingPoolContract.interface.parseTransaction({data: liquidationCall.action.input});
@@ -74,23 +77,22 @@ export class InspectorAave extends Inspector {
           actionCalls: subCallsOfLiquidation,
           transactionHash: liquidationCall.transactionHash,
           subcall: liquidationCall,
-          status: STATUS.REVERTED,
+          status: ACTION_STATUS.REVERTED,
           liquidation: liquidationOffer
         })
         continue
       }
 
-      const reserveCall = _.filter(subCallsOfLiquidation, call => {
-        return call.action.to === reserve && call.action.callType === "call"
-      });
+      const reserveTransfer = this.getTransferInfoFromCalls(reserve, subCallsOfLiquidation)
+
       const collateralCall = _.filter(subCallsOfLiquidation, call => {
         return call.action.to === collateral && call.action.callType === "call"
       });
-      const reserveTransferDecode = erc20Contract.parseTransaction({data: reserveCall[0].action.input});
-      const collateralTransferDecode = erc20Contract.parseTransaction({data: collateralCall[0].action.input});
+
+      const collateralTransferDecode = this.erc20Interface.parseTransaction({data: collateralCall[0].action.input});
 
       liquidationOffer.destAmount = collateralTransferDecode.args.value
-      liquidationOffer.sourceAmount = reserveTransferDecode.args.value
+      liquidationOffer.sourceAmount = reserveTransfer.value
 
       const action: LiquidationAction = {
         provider: ACTION_PROVIDER.AAVE,
@@ -98,7 +100,7 @@ export class InspectorAave extends Inspector {
         actionCalls: subCallsOfLiquidation,
         transactionHash: liquidationCall.transactionHash,
         subcall: liquidationCall,
-        status: STATUS.SUCCESS,
+        status: ACTION_STATUS.SUCCESS,
         liquidation: liquidationOffer
       };
       result.push(action)
@@ -126,9 +128,38 @@ export class InspectorAave extends Inspector {
         actionCalls: subCallsOfLiquidationPreflight,
         transactionHash: liquidationPreflightCall.transactionHash,
         subcall: liquidationPreflightCall,
-        status: STATUS.CHECKED,
+        status: ACTION_STATUS.CHECKED,
       })
     }
     return result
+  }
+
+  getTransferInfoFromCalls(reserveAddress: string, calls: Array<ParitySubCallWithRevert>) {
+    if (reserveAddress === InspectorAave.ETH_RESERVE_ADDRESS) {
+      const valueCalls = _.filter(calls, call => {
+        return call.action.value != "0x0" && call.action.to === LENDING_POOL_CORE_ADDRESS.toLowerCase() && call.action.callType === "call"
+      })
+      if (valueCalls.length !== 1) {
+        console.warn("Mismatch value call")
+        throw new Error(`Unexpected reserveCalls for ${reserveAddress}`)
+      }
+      return {
+        call: valueCalls[0],
+        value: BigNumber.from(valueCalls[0].action.value)
+      }
+    } else {
+      const reserveCalls = _.filter(calls, call => {
+        return call.action.to === reserveAddress && call.action.callType === "call"
+      })
+      if (reserveCalls.length !== 1) {
+        console.warn("Mismatch value call")
+        throw new Error(`Unexpected reserveCalls for ${reserveAddress}`)
+      }
+      const reserveTransferDecode = this.erc20Interface.parseTransaction({data: reserveCalls[0].action.input});
+      return {
+        call: reserveCalls[0],
+        value: reserveTransferDecode.args.value as BigNumber
+      }
+    }
   }
 }

@@ -8,12 +8,12 @@ import {
   ACTION_TYPE,
   ParitySubCallWithRevert,
   SpecificAction,
-  STATUS
+  ACTION_STATUS
 } from "./types";
 import {BALANCER_BPOOL_ABI} from "./config/abi"
 
 export class InspectorGeneric extends Inspector {
-  
+
   private readonly balancerInterface: Interface;
   private readonly balancerDirectSigHashes: string[];
   private checkers = [
@@ -64,7 +64,7 @@ export class InspectorGeneric extends Inspector {
         result.push({
           provider: checker.provider,
           type: checker.type,
-          status: checkerCall.reverted ? STATUS.REVERTED : STATUS.SUCCESS,
+          status: checkerCall.reverted ? ACTION_STATUS.REVERTED : ACTION_STATUS.SUCCESS,
           actionCalls: subCallsOfLiquidation,
           subcall: checkerCall,
           transactionHash: checkerCall.transactionHash,
