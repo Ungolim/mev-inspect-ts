@@ -4,6 +4,7 @@ import { ConnectionInfo } from "@ethersproject/web";
 import { BlockData } from "./BlockData";
 import { InspectorAave } from "./InspectorAave";
 import { InspectorUniswap } from "./InspectorUniswap";
+import { InspectorCurve } from "./InspectorCurve";
 import { InspectorGeneric } from "./InspectorGeneric";
 import { ConsumerAsciiReport } from "./ConsumerReport";
 import { ConsumerInfluxdb } from "./ConsumerInfluxdb";
@@ -30,8 +31,9 @@ async function doStuff() {
     [
       await InspectorAave.create(provider),
       await InspectorUniswap.create(provider),
-      await InspectorGeneric.create(provider),
-      await InspectorKnownBot.create(provider)
+      await InspectorKnownBot.create(provider),
+      await InspectorCurve.create(provider),
+      await InspectorGeneric.create(provider)
     ],
     [
       new ConsumerAsciiReport(),
