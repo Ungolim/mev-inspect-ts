@@ -1,0 +1,26 @@
+version: "3.8"
+services:
+  mev-inspect:
+    build: .
+    environment:
+      INFLUX_HOST: influx
+    env_file:
+        - ./.mev-inspect.env
+    volumes:
+      - type: bind
+        source: ./docker-volumes/cache
+        target: /app/cache
+  influx:
+    image: "philhawthorne/docker-influxdb-grafana:edge"
+    ports:
+      - "3003:3003"
+      - "3004:8083"
+      - "8086:8086"
+    volumes:
+      - type: bind
+        source: ./docker-volumes/grafana
+        target: /var/lib/grafana
+      - type: bind
+        source: ./docker-volumes/influxdb
+        target: /var/lib/influxdb
+

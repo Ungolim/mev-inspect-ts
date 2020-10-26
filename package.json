@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "console-table-printer": "^2.4.8",
+    "csv-writer": "^1.6.0",
     "ethers": "^5.0.14",
     "graphql": "^15.4.0",
     "graphql-request": "^3.3.0",

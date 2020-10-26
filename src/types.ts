@@ -99,6 +99,7 @@ export interface TransactionEvaluation {
   calls: ParitySubCallWithRevert[],
   unknownCalls: ParitySubCallWithRevert[],
   inferredType: txTypeWithStatus
+  profit: BigNumber
 }
 
 export interface ArbitrageProposal {

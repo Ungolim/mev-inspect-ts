@@ -20,12 +20,14 @@ export class DEXQuery {
   private blockData: BlockData;
   private uniswapRouter: Contract;
   private sushiswapRouter: Contract;
+  private blockTarget: {blockTag: number};
 
   constructor(provider: providers.JsonRpcProvider, blockData: BlockData) {
     this.provider = provider;
     this.blockData = blockData;
     this.uniswapRouter = new Contract("0x7a250d5630b4cf539739df2c5dacb4c659f2488d", UNISWAP_ROUTER_ABI, provider);
     this.sushiswapRouter = new Contract("0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F", UNISWAP_ROUTER_ABI, provider);
+    this.blockTarget = {blockTag: (this.blockData.block.number - 1)}
   }
 
   async getBestPrice(sourceToken: string, destToken: string, amount: BigNumber, isSourceAmount = true ): Promise<DexResult|undefined> {
@@ -52,12 +54,13 @@ export class DEXQuery {
     return isSourceAmount ? maxDexResult(priceQueries) : minDexResult(priceQueries);
   }
 
+
   private async uniswapV2(uniswapRouter: Contract, uniswapPath: Array<string>, sourceAmount: BigNumber, isSourceAmount: boolean): Promise<DexResult | undefined> {
     try {
       const amountsOut = await uniswapRouter.functions[isSourceAmount ? 'getAmountsOut' : 'getAmountsIn'](
         sourceAmount,
         uniswapPath,
-        {blockTag: this.blockData.block.number}
+        this.blockTarget
       );
       const amountOfDestToken = amountsOut[0][isSourceAmount ? uniswapPath.length - 1 : 0];
       return {

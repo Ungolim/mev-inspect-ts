@@ -1,12 +1,12 @@
-import { Consumer } from "./Consumer";
-import { BlockData } from "./BlockData";
 import * as _ from "lodash";
+import { printTable } from "console-table-printer";
+import { BlockData } from "./BlockData";
 import { ACTION_PROVIDER, TransactionEvaluation, TRANSACTION_TYPE, TRANSACTION_STATUS } from "./types";
 import { bigNumberToDecimal } from "./utils";
-import { printTable } from "console-table-printer";
+import { Consumer } from "./Consumer";
 
-export class ConsumerAsciiReport extends Consumer {
-  async consume(blockData: BlockData, transactionEvaluations: Array<TransactionEvaluation>): Promise<void> {
+export abstract class ConsumerReport extends Consumer {
+  async _consume(blockData: BlockData, transactionEvaluations: Array<TransactionEvaluation>) {
     const rows = _.map(transactionEvaluations, transactionEvaluation => {
       const compactedProviders = _.chain(transactionEvaluation.specificActions)
         .countBy(specificAction => ACTION_PROVIDER[specificAction.provider])
@@ -24,10 +24,10 @@ export class ConsumerAsciiReport extends Consumer {
         classifiedActions: transactionEvaluation.specificActions.length,
         compactedProviders,
         type: transactionEvaluation.inferredType.type === TRANSACTION_TYPE.UNKNOWN ? "" : TRANSACTION_TYPE[transactionEvaluation.inferredType.type],
-        status: transactionEvaluation.inferredType.status === TRANSACTION_STATUS.UNKNOWN ? "" : TRANSACTION_STATUS[transactionEvaluation.inferredType.status]
+        status: transactionEvaluation.inferredType.status === TRANSACTION_STATUS.UNKNOWN ? "" : TRANSACTION_STATUS[transactionEvaluation.inferredType.status],
+        profit: bigNumberToDecimal(transactionEvaluation.profit)
       }
     })
-    console.log(`Block Number ${blockData.block.number}`)
-    printTable(rows)
+    return rows
   }
 }
