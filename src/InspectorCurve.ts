@@ -4,13 +4,13 @@ import { Interface } from "@ethersproject/abi";
 
 import { checkCallForSignatures, getSigHashes, subcallMatch } from "./utils";
 import { Inspector } from "./Inspector";
-import { CURVE_POOL_COMPOUND_ADDRESS } from "./config/addresses";
+import { CURVE_POOL_ADDRESSES } from "./config/addresses";
 import { ACTION_PROVIDER, ACTION_TYPE, ParitySubCallWithRevert, SpecificAction, ACTION_STATUS, TradeAction } from "./types";
 import { TokenTracker } from "./TokenTracker";
 import { CURVE_POOL_ABI } from "./config/abi";
 
 export class InspectorCurve extends Inspector {
-  public curvePoolContract: Contract
+  private curvePoolInterface: Interface;
   private curvePoolSigHashes: Array<string>;
 
   constructor(provider: providers.JsonRpcProvider) {
@@ -22,8 +22,8 @@ export class InspectorCurve extends Inspector {
       .map("name")
       .compact()
       .value()
-    this.curvePoolContract = new Contract(CURVE_POOL_COMPOUND_ADDRESS, CURVE_POOL_ABI, provider);
-    this.curvePoolSigHashes = getSigHashes(this.curvePoolContract.interface, tradingFunctions);
+    this.curvePoolInterface = new Interface(CURVE_POOL_ABI)
+    this.curvePoolSigHashes = getSigHashes(this.curvePoolInterface, tradingFunctions);
   }
 
   static async create(provider: providers.JsonRpcProvider): Promise<InspectorCurve> {
@@ -35,7 +35,7 @@ export class InspectorCurve extends Inspector {
 
     const unknownCalls = _.clone(calls)
     const tradeCalls = _.filter(unknownCalls, (call) =>
-      (call.action.to === CURVE_POOL_COMPOUND_ADDRESS.toLowerCase()) &&
+      (CURVE_POOL_ADDRESSES.some((addr) => call.action.to === addr.toLowerCase())) &&
       checkCallForSignatures(call, this.curvePoolSigHashes))
 
     for (const tradeCall of tradeCalls) {
@@ -48,7 +48,7 @@ export class InspectorCurve extends Inspector {
         console.warn("Removed a recursive call")
         continue
       }
-      const parsedTradeCall = this.curvePoolContract.interface.parseTransaction({data: tradeCall.action.input})
+      const parsedTradeCall = this.curvePoolInterface.parseTransaction({data: tradeCall.action.input})
 
       const i = parsedTradeCall.args.i
       const j = parsedTradeCall.args.j
