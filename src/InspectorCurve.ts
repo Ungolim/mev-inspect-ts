@@ -4,16 +4,17 @@ import { Interface } from "@ethersproject/abi";
 
 import { checkCallForSignatures, getSigHashes, subcallMatch } from "./utils";
 import { Inspector } from "./Inspector";
-import { CURVE_POOL_ADDRESSES } from "./config/addresses";
+import { CURVE_POOL_REGISTRY_ADDRESS } from "./config/addresses";
 import { ACTION_PROVIDER, ACTION_TYPE, ParitySubCallWithRevert, SpecificAction, ACTION_STATUS, TradeAction } from "./types";
 import { TokenTracker } from "./TokenTracker";
-import { CURVE_POOL_ABI } from "./config/abi";
+import { CURVE_POOL_ABI, CURVE_POOL_REGISTRY_ABI } from "./config/abi";
 
 export class InspectorCurve extends Inspector {
+  private curvePoolAddresses: Array<string>;
   private curvePoolInterface: Interface;
   private curvePoolSigHashes: Array<string>;
 
-  constructor(provider: providers.JsonRpcProvider) {
+  constructor(provider: providers.JsonRpcProvider, poolAddresses: Array<string>) {
     super(provider);
     const tradingFunctions = _.chain(CURVE_POOL_ABI)
       .filter(abi => {
@@ -22,12 +23,18 @@ export class InspectorCurve extends Inspector {
       .map("name")
       .compact()
       .value()
+    this.curvePoolAddresses = poolAddresses
     this.curvePoolInterface = new Interface(CURVE_POOL_ABI)
     this.curvePoolSigHashes = getSigHashes(this.curvePoolInterface, tradingFunctions);
   }
 
   static async create(provider: providers.JsonRpcProvider): Promise<InspectorCurve> {
-    return new InspectorCurve(provider)
+    // Load all pool addresses
+    const poolRegistry = new Contract(CURVE_POOL_REGISTRY_ADDRESS, CURVE_POOL_REGISTRY_ABI, provider);
+    const poolCount = (await poolRegistry.pool_count()).toNumber();
+    const poolAddresses = await Promise.all([ ...Array(poolCount).keys() ].map(i => poolRegistry.pool_list(i)));
+
+    return new InspectorCurve(provider, poolAddresses)
   }
 
   async inspect(calls: Array<ParitySubCallWithRevert>): Promise<Array<SpecificAction>> {
@@ -35,7 +42,7 @@ export class InspectorCurve extends Inspector {
 
     const unknownCalls = _.clone(calls)
     const tradeCalls = _.filter(unknownCalls, (call) =>
-      (CURVE_POOL_ADDRESSES.some((addr) => call.action.to === addr.toLowerCase())) &&
+      (this.curvePoolAddresses.some((addr) => call.action.to === addr.toLowerCase())) &&
       checkCallForSignatures(call, this.curvePoolSigHashes))
 
     for (const tradeCall of tradeCalls) {
