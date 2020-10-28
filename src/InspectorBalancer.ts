@@ -11,25 +11,25 @@ import { TokenTracker } from "./TokenTracker";
 import { BALANCER_BPOOL_ABI, BALANCER_EXCHANGE_PROXY_ABI } from "./config/abi";
 
 export class InspectorBalancer extends Inspector {
-  private balancerPoolAddresses: Array<string>;
-  private balancerPoolInterface: Interface;
-  private balancerPoolSigHashes: Array<string>;
-  private balancerExchangeProxyInterface: Interface;
-  private balancerExchangeProxySigHashes: Array<string>;
+  private poolAddresses: Array<string>;
+  private poolInterface: Interface;
+  private poolSigHashes: Array<string>;
+  private exchangeProxyInterface: Interface;
+  private exchangeProxySigHashes: Array<string>;
 
   constructor(provider: providers.JsonRpcProvider, poolAddresses: Array<string>) {
     super(provider);
 
     // Pool
     const poolTradingFunctions = ['swapExactAmountIn', 'swapExactAmountOut']
-    this.balancerPoolAddresses = poolAddresses
-    this.balancerPoolInterface = new Interface(BALANCER_BPOOL_ABI)
-    this.balancerPoolSigHashes = getSigHashes(this.balancerPoolInterface, poolTradingFunctions);
+    this.poolAddresses = poolAddresses
+    this.poolInterface = new Interface(BALANCER_BPOOL_ABI)
+    this.poolSigHashes = getSigHashes(this.poolInterface, poolTradingFunctions);
 
     // Exchange proxy
     const exchangeProxyTradingFunctions = ['batchSwapExactIn', 'batchSwapExactOut', 'multihopBatchSwapExactIn', 'multihopBatchSwapExactOut', 'smartSwapExactIn', 'smartSwapExactOut']
-    this.balancerExchangeProxyInterface = new Interface(BALANCER_EXCHANGE_PROXY_ABI)
-    this.balancerExchangeProxySigHashes = getSigHashes(this.balancerExchangeProxyInterface, exchangeProxyTradingFunctions)
+    this.exchangeProxyInterface = new Interface(BALANCER_EXCHANGE_PROXY_ABI)
+    this.exchangeProxySigHashes = getSigHashes(this.exchangeProxyInterface, exchangeProxyTradingFunctions)
   }
 
   static async create(provider: providers.JsonRpcProvider): Promise<InspectorBalancer> {
@@ -48,7 +48,7 @@ export class InspectorBalancer extends Inspector {
     // Exchange proxy trades
     const proxyTradeCalls = _.filter(unknownCalls, (call) =>
       (call.action.to === BALANCER_EXCHANGE_PROXY_ADDRESS.toLowerCase()) &&
-      checkCallForSignatures(call, this.balancerExchangeProxySigHashes))
+      checkCallForSignatures(call, this.exchangeProxySigHashes))
 
     for (const tradeCall of proxyTradeCalls) {
       const subCallsOfTrade = _.remove(unknownCalls, call => {
@@ -60,7 +60,7 @@ export class InspectorBalancer extends Inspector {
         console.warn("Removed a recursive call")
         continue
       }
-      const parsedTradeCall = this.balancerExchangeProxyInterface.parseTransaction({data: tradeCall.action.input});
+      const parsedTradeCall = this.exchangeProxyInterface.parseTransaction({data: tradeCall.action.input});
       // TODO: save call arguments
 
       const tokenTracker = new TokenTracker(subCallsOfTrade);
@@ -84,8 +84,8 @@ export class InspectorBalancer extends Inspector {
 
     // Direct pool trades
     const poolTradeCalls = _.filter(unknownCalls, (call) =>
-      (this.balancerPoolAddresses.some((addr) => call.action.to === addr.toLowerCase())) &&
-      checkCallForSignatures(call, this.balancerPoolSigHashes))
+      (this.poolAddresses.some((addr) => call.action.to === addr.toLowerCase())) &&
+      checkCallForSignatures(call, this.poolSigHashes))
 
     for (const tradeCall of poolTradeCalls) {
       const subCallsOfTrade = _.remove(unknownCalls, call => {
@@ -97,7 +97,7 @@ export class InspectorBalancer extends Inspector {
         console.warn("Removed a recursive call")
         continue
       }
-      const parsedTradeCall = this.balancerPoolInterface.parseTransaction({data: tradeCall.action.input})
+      const parsedTradeCall = this.poolInterface.parseTransaction({data: tradeCall.action.input})
       // TODO: save call arguments
 
       const tokenTracker = new TokenTracker(subCallsOfTrade)
@@ -129,7 +129,7 @@ const BALANCER_POOLS_QUERY = gql`
   {
     pools(
       first: 1000,
-      where: {publicSwap: true, active:true, swapsCount_gt: 100},
+      where: {publicSwap: true, active: true, swapsCount_gt: 100},
       orderBy: swapsCount,
       orderDirection: desc
     ) {
