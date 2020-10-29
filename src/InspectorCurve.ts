@@ -32,7 +32,7 @@ export class InspectorCurve extends Inspector {
     // Load all pool addresses
     const poolRegistry = new Contract(CURVE_POOL_REGISTRY_ADDRESS, CURVE_POOL_REGISTRY_ABI, provider);
     const poolCount = (await poolRegistry.pool_count()).toNumber();
-    const poolAddresses = await Promise.all([ ...Array(poolCount).keys() ].map(i => poolRegistry.pool_list(i)));
+    const poolAddresses = await Promise.all(_.range(poolCount).map(i => poolRegistry.pool_list(i)));
 
     return new InspectorCurve(provider, poolAddresses)
   }
