@@ -12,6 +12,8 @@
   "dependencies": {
     "console-table-printer": "^2.4.8",
     "ethers": "^5.0.14",
+    "graphql": "^15.4.0",
+    "graphql-request": "^3.3.0",
     "influx": "^5.6.3",
     "lodash": "^4.17.20",
     "ts-node": "^9.0.0",
