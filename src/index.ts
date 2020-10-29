@@ -5,6 +5,7 @@ import { BlockData } from "./BlockData";
 import { InspectorAave } from "./InspectorAave";
 import { InspectorUniswap } from "./InspectorUniswap";
 import { InspectorCurve } from "./InspectorCurve";
+import { InspectorBalancer } from "./InspectorBalancer";
 import { InspectorGeneric } from "./InspectorGeneric";
 import { ConsumerAsciiReport } from "./ConsumerReport";
 import { ConsumerInfluxdb } from "./ConsumerInfluxdb";
@@ -31,9 +32,10 @@ async function doStuff() {
     [
       await InspectorAave.create(provider),
       await InspectorUniswap.create(provider),
-      await InspectorKnownBot.create(provider),
       await InspectorCurve.create(provider),
-      await InspectorGeneric.create(provider)
+      await InspectorBalancer.create(provider),
+      await InspectorGeneric.create(provider),
+      await InspectorKnownBot.create(provider)
     ],
     [
       new ConsumerAsciiReport(),
