@@ -74,11 +74,6 @@ export class InspectorCurve extends Inspector {
         status: tradeCall.reverted ? ACTION_STATUS.REVERTED : ACTION_STATUS.SUCCESS,
       };
 
-      if (tradeCall.reverted) {
-        result.push(action)
-        continue
-      }
-
       result.push(action)
     }
 
