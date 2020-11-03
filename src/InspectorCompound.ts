@@ -12,7 +12,7 @@ import {
   LiquidationAction, LiquidationOffer,
   ParitySubCallWithRevert,
   SpecificAction,
-  STATUS
+  ACTION_STATUS
 } from "./types";
 import { toLower } from 'lodash';
 import { checkServerIdentity } from 'tls';
@@ -99,7 +99,7 @@ export class InspectorCompound extends Inspector {
           actionCalls: subCallsOfLiquidation,
           transactionHash: liquidationCall.transactionHash,
           subcall: liquidationCall,
-          status: STATUS.REVERTED,
+          status: ACTION_STATUS.REVERTED,
           liquidation: liquidationOffer
         })
         continue
@@ -130,7 +130,7 @@ export class InspectorCompound extends Inspector {
       
       // if return code is 0, liquidation was successful, otherwise it failed, label as "CHECKED"
       const ZERO_STRING = "0x0000000000000000000000000000000000000000000000000000000000000000";
-      const callStatus = liquidationCall.result.output === ZERO_STRING ? STATUS.SUCCESS : STATUS.CHECKED;
+      const callStatus = liquidationCall.result.output === ZERO_STRING ? ACTION_STATUS.SUCCESS : ACTION_STATUS.CHECKED;
 
       const action: LiquidationAction = {
         provider: ACTION_PROVIDER.COMPOUND,
@@ -169,7 +169,7 @@ export class InspectorCompound extends Inspector {
     //     actionCalls: subCallsOfLiquidationPreflight,
     //     transactionHash: liquidationPreflightCall.transactionHash,
     //     subcall: liquidationPreflightCall,
-    //     status: STATUS.CHECKED,
+    //     status: ACTION_STATUS.CHECKED,
     //   })
     // }
     return result
