@@ -28,9 +28,13 @@ export function minDexResult(priceQueries: Array<DexResult>): DexResult|undefine
   )
 }
 
+export function sumBigNumbers(values: Array<BigNumber>) {
+  return _.reduce(values, (cum, value) => value.add(cum), BigNumber.from(0))
+}
+
 export function bigNumberToDecimal(value: BigNumber, base = 18): number {
   const divisor = BigNumber.from(10).pow(base)
-  return value.mul(100).div(divisor).toNumber() / 100
+  return value.mul(10000).div(divisor).toNumber() / 10000
 }
 
 export async function getDecimalsByAddress(provider: providers.JsonRpcProvider, tokenAddress: string): Promise<number> {

@@ -18,11 +18,11 @@ export class InspectorGeneric extends Inspector {
   private readonly balancerDirectSigHashes: string[];
   private checkers = [
     {
-      filter: (call: ParitySubCallWithRevert) =>
-        call.action.to === "0x45f783cce6b7ff23b2ab2d70e416cdb7d6055f51",
-      provider: ACTION_PROVIDER.CURVE,
-      type: ACTION_TYPE.TRADE
-    }, {
+    //   filter: (call: ParitySubCallWithRevert) =>
+    //     call.action.to === "0x45f783cce6b7ff23b2ab2d70e416cdb7d6055f51",
+    //   provider: ACTION_PROVIDER.CURVE,
+    //   type: ACTION_TYPE.TRADE
+    // }, {
       filter: (call: ParitySubCallWithRevert) =>
         call.action.to === "0x61935cbdd02287b511119ddb11aeb42f1593b7ef",
       provider: ACTION_PROVIDER.ZEROX,
