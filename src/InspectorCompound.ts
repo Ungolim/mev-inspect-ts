@@ -4,8 +4,8 @@ import { Interface, TransactionDescription, parseEther } from "ethers/lib/utils"
 
 import { getSigHashes, subcallMatch } from "./utils";
 import { Inspector } from "./Inspector";
-import { ERC20_ABI, COMPOUND_CTOKEN_ABI, COMPOUND_CETHER_ABI, COMPOUND_COMPTROLLER_ABI } from "./config/abi";
-import { COMPOUND_COMPTROLLER_ADDRESS, COMPOUND_CETHER_ADDRESS, WETH } from "./config/addresses";
+import { ERC20_ABI, COMPOUND_CTOKEN_ABI, COMPOUND_CETHER_ABI, COMPOUND_COMPTROLLER_ABI, COMPOUND_ORACLE_ABI } from "./config/abi";
+import { COMPOUND_COMPTROLLER_ADDRESS, COMPOUND_CETHER_ADDRESS, WETH, COMPOUND_ORACLE_ADDRESS } from "./config/addresses";
 import {
   ACTION_PROVIDER,
   ACTION_TYPE,
@@ -21,6 +21,9 @@ export class InspectorCompound extends Inspector {
   public cTokenContract: Interface;
   public cEtherContract: Interface;
   private static liquidationFunctionName = 'liquidateBorrow';
+  private static liquidationAllowedFunctionName = 'liquidateBorrowAllowed';
+  private static oracleGetPriceFunctionName = 'getUnderlyingPrice';
+
   private cTokenLiquidationSig: string;
   private cEtherLiquidationSig: string;
   public cTokenAddresses: Array<string>;
@@ -189,29 +192,42 @@ export class InspectorCompound extends Inspector {
       return result
     }
 
-    // TODO: implement opportunity checks
+    /////////////////////
+    // Opportunity checks
     //
-    // If we haven't found a liquidation call that happened, see if there was a preflight
-    // const liquidationPreflightCalls = _.filter(unknownCalls, (call) =>
-    //   ((call.action.to === LENDING_POOL_ADDRESS.toLowerCase() && call.action.input.startsWith("0xbf92857c")) ||
-    //     (call.action.to === LENDING_POOL_CORE_ADDRESS.toLowerCase() && call.action.input.startsWith("0x66d103f3")
-    //     )))  // getUserAccountData
+    const comptrollerContract = new Interface(COMPOUND_COMPTROLLER_ABI);
+    const comptrollerLiquidationAllowedSig = comptrollerContract.getSighash(comptrollerContract.getFunction(InspectorCompound.liquidationAllowedFunctionName));
+    const oracleContract = new Interface(COMPOUND_ORACLE_ABI);
+    const oracleGetPriceSig = oracleContract.getSighash(oracleContract.getFunction(InspectorCompound.oracleGetPriceFunctionName));
+    
+    const liquidationPreflightCalls = _.filter(unknownCalls, (call) =>
+      (
+        // Validate liquidation
+        call.action.to === COMPOUND_COMPTROLLER_ADDRESS.toLowerCase() && call.action.input.startsWith(comptrollerLiquidationAllowedSig)
+      ) 
+      ||
+      (
+        // Check oracle price
+        call.action.to === COMPOUND_ORACLE_ADDRESS.toLowerCase() && call.action.input.startsWith(oracleGetPriceSig)
+      )
+    )
 
-    // for (const liquidationPreflightCall of liquidationPreflightCalls) {
-    //   const subCallsOfLiquidationPreflight = _.remove(unknownCalls, call => {
-    //     return call.transactionHash === liquidationPreflightCall.transactionHash &&
-    //       subcallMatch(call, liquidationPreflightCall.traceAddress)
-    //   })
+    for (const liquidationPreflightCall of liquidationPreflightCalls) {
+      const subCallsOfLiquidationPreflight = _.remove(unknownCalls, call => {
+        return call.transactionHash === liquidationPreflightCall.transactionHash &&
+          subcallMatch(call, liquidationPreflightCall.traceAddress)
+        })
 
-    //   result.push({
-    //     provider: ACTION_PROVIDER.AAVE,
-    //     type: ACTION_TYPE.LIQUIDATION,
-    //     actionCalls: subCallsOfLiquidationPreflight,
-    //     transactionHash: liquidationPreflightCall.transactionHash,
-    //     subcall: liquidationPreflightCall,
-    //     status: ACTION_STATUS.CHECKED,
-    //   })
-    // }
+      result.push({
+        provider: ACTION_PROVIDER.COMPOUND,
+        type: ACTION_TYPE.LIQUIDATION,
+        actionCalls: subCallsOfLiquidationPreflight,
+        transactionHash: liquidationPreflightCall.transactionHash,
+        subcall: liquidationPreflightCall,
+        status: ACTION_STATUS.CHECKED,
+      })
+    }
+
     return result
   }
 }
