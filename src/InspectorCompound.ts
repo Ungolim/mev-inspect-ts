@@ -38,9 +38,6 @@ export class InspectorCompound extends Inspector {
     this.cEtherLiquidationSig = this.cEtherInterface.getSighash(this.cEtherInterface.getFunction(InspectorCompound.liquidationFunctionName));
     this.cTokenAddresses = cTokenAddresses;
     this.underlyingAddresses = underlyingAddresses;
-    // console.log(this.cTokenAddresses);
-    // console.log(this.underlyingAddresses);
-
   }
 
   static async create(provider: providers.JsonRpcProvider): Promise<InspectorCompound> {
@@ -96,8 +93,6 @@ export class InspectorCompound extends Inspector {
       const cTokenAddress: string = liquidationCall.action.to ?? ""; // should never be empty, need check for casting purposes
       const underlying: string = this.underlyingAddresses[cTokenAddress];
       const ZERO = BigNumber.from(0);
-      // console.log("Underlying: ", underlying);
-      // console.log("Collateral: ", collateral);
             
       const liquidationOffer: LiquidationOffer = {
         sourceToken: underlying, 
@@ -134,7 +129,6 @@ export class InspectorCompound extends Inspector {
     
       const collateralTransferDecode = this.cTokenInterface.parseTransaction({data: collateralCall[1].action.input});
       liquidationOffer.destAmount = collateralTransferDecode.args.seizeTokens;
-      // console.log("liquidationOffer.destAmount: ", liquidationOffer.destAmount);
       
 
       ////////////////////////////
@@ -159,11 +153,7 @@ export class InspectorCompound extends Inspector {
         
         const underlyingTransferDecode = erc20Contract.parseTransaction({data: underlyingCall[0].action.input});
         liquidationOffer.sourceAmount = underlyingTransferDecode.args.value
-        
-        // // Sanity check: these should macth, as the underlying amount is passed as parameter
-        // console.log("liquidationOffer.sourceAmount: ", liquidationOffer.sourceAmount);
-        // console.log("calldata argument repayAmount: ", parsedLiquidationCall.args.repayAmount);
-        
+         
         // If return code is 0, liquidation was successful, otherwise it failed, label as "CHECKED"
         const ZERO_STRING = "0x0000000000000000000000000000000000000000000000000000000000000000";
         callStatus = liquidationCall.result.output === ZERO_STRING ? ACTION_STATUS.SUCCESS : ACTION_STATUS.CHECKED;
