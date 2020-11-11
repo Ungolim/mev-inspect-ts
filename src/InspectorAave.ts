@@ -14,6 +14,7 @@ import {
   SpecificAction,
   ACTION_STATUS
 } from "./types";
+import { TokenTracker } from "./TokenTracker";
 
 export class InspectorAave extends Inspector {
   private static readonly ETH_RESERVE_ADDRESS = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
@@ -83,15 +84,12 @@ export class InspectorAave extends Inspector {
         continue
       }
 
-      const reserveTransfer = this.getTransferInfoFromCalls(reserve, subCallsOfLiquidation)
+      // reserve is asset being given to Aave
+      // collateral is asset being taken from Aave
+      const reserveTransfer = this.getTransferInfoFromCalls(reserve, true, subCallsOfLiquidation)
+      const collateralTransfer = this.getTransferInfoFromCalls(collateral, false, subCallsOfLiquidation);
 
-      const collateralCall = _.filter(subCallsOfLiquidation, call => {
-        return call.action.to === collateral && call.action.callType === "call"
-      });
-
-      const collateralTransferDecode = this.erc20Interface.parseTransaction({data: collateralCall[0].action.input});
-
-      liquidationOffer.destAmount = collateralTransferDecode.args.value
+      liquidationOffer.destAmount = collateralTransfer.value
       liquidationOffer.sourceAmount = reserveTransfer.value
 
       const action: LiquidationAction = {
@@ -134,14 +132,17 @@ export class InspectorAave extends Inspector {
     return result
   }
 
-  getTransferInfoFromCalls(reserveAddress: string, calls: Array<ParitySubCallWithRevert>) {
-    if (reserveAddress === InspectorAave.ETH_RESERVE_ADDRESS) {
+  getTransferInfoFromCalls(assetAddress: string, incomingToAave: boolean, calls: Array<ParitySubCallWithRevert>) {
+    const feeCollector = '0xe3d9988f676457123c5fd01297605efdd0cba1ae'
+    if (assetAddress === InspectorAave.ETH_RESERVE_ADDRESS) {
       const valueCalls = _.filter(calls, call => {
-        return call.action.value != "0x0" && call.action.to === LENDING_POOL_CORE_ADDRESS.toLowerCase() && call.action.callType === "call"
+        return (call.action[incomingToAave ? "to" : "from"] === LENDING_POOL_CORE_ADDRESS.toLowerCase()) &&
+          call.action.to !== feeCollector &&
+          call.action.value != "0x0" && call.action.callType === "call"
       })
       if (valueCalls.length !== 1) {
         console.warn("Mismatch value call")
-        throw new Error(`Unexpected reserveCalls for ${reserveAddress}`)
+        throw new Error(`a Unexpected reserveCalls for ${assetAddress}`)
       }
       return {
         call: valueCalls[0],
@@ -149,16 +150,21 @@ export class InspectorAave extends Inspector {
       }
     } else {
       const reserveCalls = _.filter(calls, call => {
-        return call.action.to === reserveAddress && call.action.callType === "call"
+        return call.action.to === assetAddress && call.action.callType === "call"
       })
-      if (reserveCalls.length !== 1) {
+
+      const reserveTransferDecodes = _.chain(TokenTracker.extractTransfersFromSubcalls(reserveCalls))
+        .filter(transfer =>
+          transfer.to !== feeCollector && transfer.from !== feeCollector &&
+          transfer[incomingToAave ? "to" : "from"] === LENDING_POOL_CORE_ADDRESS.toLowerCase())
+        .value()
+      if (reserveTransferDecodes.length !== 1) {
         console.warn("Mismatch value call")
-        throw new Error(`Unexpected reserveCalls for ${reserveAddress}`)
+        throw new Error(`Unexpected reserveCalls for ${assetAddress}`)
       }
-      const reserveTransferDecode = this.erc20Interface.parseTransaction({data: reserveCalls[0].action.input});
       return {
         call: reserveCalls[0],
-        value: reserveTransferDecode.args.value as BigNumber
+        value: reserveTransferDecodes[0].value
       }
     }
   }

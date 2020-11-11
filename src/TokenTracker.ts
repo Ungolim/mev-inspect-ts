@@ -8,7 +8,7 @@ import { DEXQuery} from "./DEXQuery";
 import { ERC20_ABI } from "./config/abi";
 import { WETH } from "./config/addresses";
 import { ParitySubCallWithRevert } from "./types";
-import { checkCallForSignatures } from "./utils";
+import { checkCallForSignatures, sumBigNumbers } from "./utils";
 
 export interface TransferSimplified {
   from: string;
@@ -63,10 +63,10 @@ export class TokenTracker {
     return new TokenTracker(_.filter(blockData.calls, call => call.transactionHash === transactionHash))
   }
 
-  private static extractTransfersFromSubcalls(calls: Array<ParitySubCallWithRevert>) {
+  public static extractTransfersFromSubcalls(calls: Array<ParitySubCallWithRevert>) {
     return _.chain(calls)
       .filter(call =>
-        !call.reverted && call.type === 'call' &&
+        !call.reverted && call.action.callType === 'call' &&
         (
           call.action.value !== "0x0" || checkCallForSignatures(call, TokenTracker.TOKEN_MOVEMENT_SIGNATURES)
         )
@@ -84,6 +84,9 @@ export class TokenTracker {
         }
         try {
           const transactionDescription = erc20Interface.parseTransaction({data: transferCall.action.input});
+          if (transferCall.action.to !== WETH.toLowerCase() && (
+            transactionDescription.name === 'withdraw' || transactionDescription.name === 'deposit' ))
+            return transfers
           if (transactionDescription !== undefined) {
             if (transferCall.action.to === WETH.toLowerCase() && transactionDescription.name === "deposit") {
               transfers.push({
@@ -181,5 +184,35 @@ export class TokenTracker {
       response[holderAddress] = total
     }))
     return response
+  }
+
+  async getFilteredProfitInToken(dexQuery: DEXQuery, destinationToken: string, filterAccounts: Array<string>) {
+    const tokenBalances: { [holder: string]: BigNumber } = {}
+    _.forEach(filterAccounts, filterAccount => {
+      _.forEach(this._balancesByHolder[filterAccount], (tokenAmount, tokenAddress) => {
+        const normalizedTokenAddress = tokenAddress === "ETH" ? WETH.toLowerCase() : tokenAddress
+        tokenBalances[normalizedTokenAddress] = tokenAmount.add(tokenBalances[normalizedTokenAddress] || 0)
+        }
+      )
+      // response[holderAddress] = total
+    })
+    // return response
+    let total = BigNumber.from(0)
+    const s = await Promise.all(_.map(tokenBalances, async (tokenAmount, tokenAddress) => {
+        if (tokenAmount.isNegative()) {
+          const dexResult = await dexQuery.getBestPrice(destinationToken, tokenAddress, tokenAmount.abs(), false);
+          if (dexResult !== undefined) {
+            return dexResult.amount.mul(-1)
+          }
+        } else {
+          const dexResult = await dexQuery.getBestPrice(tokenAddress, destinationToken, tokenAmount);
+          if (dexResult !== undefined) {
+            return dexResult.amount
+          }
+        }
+        return BigNumber.from(0)
+      })
+    )
+    return sumBigNumbers(s)
   }
 }

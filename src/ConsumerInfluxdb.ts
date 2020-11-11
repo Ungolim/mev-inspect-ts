@@ -25,10 +25,10 @@ export class ConsumerInfluxdb extends Consumer {
             gasUsed: FieldType.INTEGER,
             ethSpent: FieldType.FLOAT,
             blockNumberField: FieldType.INTEGER,
+            profit: FieldType.FLOAT,
           },
           tags: [
             'txType',
-            'blockNumber',
             'txStatus'
           ]
         },
@@ -68,7 +68,6 @@ export class ConsumerInfluxdb extends Consumer {
     const transactionsByType = _.groupBy(transactionEvaluations,
         transactionEvaluation => JSON.stringify(transactionEvaluation.inferredType));
 
-
     const points: Array<IPoint> = _.map(transactionsByType, transactionByType => {
       const txType = transactionByType[0].inferredType
       const gasUsed = _.reduce(transactionByType, (cum, cur) => {
@@ -77,18 +76,21 @@ export class ConsumerInfluxdb extends Consumer {
       const ethSpent = _.reduce(transactionByType, (cum, cur) => {
         return cum.add(cur.transaction.gasPrice.mul(cur.transactionReceipt.gasUsed))
       }, BigNumber.from(0))
+      const profit = _.reduce(transactionByType, (cum, cur) => {
+        return cum.add(cur.profit)
+      }, BigNumber.from(0))
       return {
         timestamp: blockData.block.timestamp,
         measurement: this.measurement,
         tags: {
           txType: TRANSACTION_TYPE[txType.type],
           txStatus: TRANSACTION_STATUS[txType.status],
-          blockNumber: `${blockData.block.number}`
         },
         fields: {
           blockNumberField: blockData.block.number,
           gasUsed: gasUsed.toNumber(),
           ethSpent: bigNumberToDecimal(ethSpent),
+          profit: bigNumberToDecimal(profit),
         },
       };
     })
@@ -106,7 +108,7 @@ export class ConsumerInfluxdb extends Consumer {
         zeroPoints.push({
           timestamp: blockData.block.timestamp,
           measurement: this.measurement,
-          tags: {txType: TRANSACTION_TYPE[type], txStatus: TRANSACTION_STATUS[txStatus], blockNumber: blockData.block.number.toString()},
+          tags: {txType: TRANSACTION_TYPE[type], txStatus: TRANSACTION_STATUS[txStatus]},
           fields: {blockNumberField: blockData.block.number, gasUsed: 0, ethSpent: 0.0}
         })
       }
@@ -115,8 +117,7 @@ export class ConsumerInfluxdb extends Consumer {
   }
 
   private async wipeBlockData(blockData: BlockData) {
-    await this.influx.dropSeries({
-      where: e => e.tag("blockNumber").equals.value(`${blockData.block.number}`)
-    })
+    const query = `DELETE FROM ${this.measurement} WHERE time = ${blockData.block.timestamp}`;
+    await this.influx.query(query).then(console.log)
   }
 }

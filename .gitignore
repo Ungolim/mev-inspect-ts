@@ -1,5 +1,6 @@
-node_modules/
-.idea/
-cache/
-build/
+/node_modules/
+/.idea/
+/cache/
+/build/
+/docker-volumes
 .env
