@@ -18,8 +18,8 @@ import { toLower } from 'lodash';
 import { checkServerIdentity } from 'tls';
 
 export class InspectorCompound extends Inspector {
-  public cTokenContract: Interface;
-  public cEtherContract: Interface;
+  public cTokenInterface: Interface;
+  public cEtherInterface: Interface;
   private static liquidationFunctionName = 'liquidateBorrow';
   private static liquidationAllowedFunctionName = 'liquidateBorrowAllowed';
   private static oracleGetPriceFunctionName = 'getUnderlyingPrice';
@@ -32,10 +32,10 @@ export class InspectorCompound extends Inspector {
   constructor(provider: providers.JsonRpcProvider, cTokenAddresses: Array<string>, underlyingAddresses: Record<string, string>) {
     super(provider);
 
-    this.cTokenContract = new Interface(COMPOUND_CTOKEN_ABI);
-    this.cTokenLiquidationSig = this.cTokenContract.getSighash(this.cTokenContract.getFunction(InspectorCompound.liquidationFunctionName));
-    this.cEtherContract = new Interface(COMPOUND_CETHER_ABI);
-    this.cEtherLiquidationSig = this.cEtherContract.getSighash(this.cEtherContract.getFunction(InspectorCompound.liquidationFunctionName));
+    this.cTokenInterface = new Interface(COMPOUND_CTOKEN_ABI);
+    this.cTokenLiquidationSig = this.cTokenInterface.getSighash(this.cTokenInterface.getFunction(InspectorCompound.liquidationFunctionName));
+    this.cEtherInterface = new Interface(COMPOUND_CETHER_ABI);
+    this.cEtherLiquidationSig = this.cEtherInterface.getSighash(this.cEtherInterface.getFunction(InspectorCompound.liquidationFunctionName));
     this.cTokenAddresses = cTokenAddresses;
     this.underlyingAddresses = underlyingAddresses;
     // console.log(this.cTokenAddresses);
@@ -48,7 +48,6 @@ export class InspectorCompound extends Inspector {
     const cTokenAddresses = (await comptrollerContract.getAllMarkets() as Array<string>).map((address) => address.toLowerCase());
     let underlyingAddresses: Record<string, string> = {}; 
   
-    const cTokenContract = new Interface(COMPOUND_CTOKEN_ABI);
     for (const cTokenAddress of cTokenAddresses){
       if (cTokenAddress !== COMPOUND_CETHER_ADDRESS.toLowerCase()){ // cEther doesn't implement underlying(), handle separately
         const cTokenContract = new Contract(cTokenAddress, COMPOUND_CTOKEN_ABI, provider);
@@ -77,11 +76,11 @@ export class InspectorCompound extends Inspector {
       let parsedLiquidationCall: TransactionDescription;
       // cEther case
       if (liquidationCall.action.to === COMPOUND_CETHER_ADDRESS.toLowerCase()) {
-        parsedLiquidationCall = this.cEtherContract.parseTransaction({data: liquidationCall.action.input});
+        parsedLiquidationCall = this.cEtherInterface.parseTransaction({data: liquidationCall.action.input});
       }
       // cToken case
       else {
-        parsedLiquidationCall = this.cTokenContract.parseTransaction({data: liquidationCall.action.input});
+        parsedLiquidationCall = this.cTokenInterface.parseTransaction({data: liquidationCall.action.input});
       }
         
       const subCallsOfLiquidation = _.remove(unknownCalls, call => {
@@ -129,12 +128,11 @@ export class InspectorCompound extends Inspector {
       ////////////////////////////
       // Parse collateral transfer
       //
-      const cTokenContract = new Interface(COMPOUND_CTOKEN_ABI);
       const collateralCall = _.filter(subCallsOfLiquidation, call => {
         return call.action.to === collateral && call.action.callType === "call"
       });
     
-      const collateralTransferDecode = cTokenContract.parseTransaction({data: collateralCall[1].action.input});
+      const collateralTransferDecode = this.cTokenInterface.parseTransaction({data: collateralCall[1].action.input});
       liquidationOffer.destAmount = collateralTransferDecode.args.seizeTokens;
       // console.log("liquidationOffer.destAmount: ", liquidationOffer.destAmount);
       
