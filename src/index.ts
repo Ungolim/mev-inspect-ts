@@ -11,6 +11,7 @@ import { ConsumerAsciiReport } from "./ConsumerReport";
 import { ConsumerInfluxdb } from "./ConsumerInfluxdb";
 import { Processor } from "./Processor";
 import { InspectorKnownBot } from "./InspectorKnownBot";
+import { InspectorCompound } from './dump';
 
 const ETHEREUM_URL = process.env.ETHEREUM_URL || "http://127.0.0.1:8545";
 const INFLUX_DB = process.env.INFLUX_DB || 'mev';
@@ -35,7 +36,8 @@ async function doStuff() {
       await InspectorCurve.create(provider),
       await InspectorBalancer.create(provider),
       await InspectorGeneric.create(provider),
-      await InspectorKnownBot.create(provider)
+      await InspectorKnownBot.create(provider),
+      await InspectorCompound.create(provider)
     ],
     [
       new ConsumerAsciiReport(),
