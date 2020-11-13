@@ -103,8 +103,8 @@ export class InspectorCompound extends Inspector {
       }
 
 
-      ///////////////////////////
-      // Handle reverted calls
+      /////////////////////////////////////////////////////////
+      // Handle reverted calls (failed liquidations for cETHER)
       //
       if (liquidationCall.reverted) {
         result.push({
@@ -119,46 +119,49 @@ export class InspectorCompound extends Inspector {
         continue
       }
 
-
-      ////////////////////////////
-      // Parse collateral transfer
-      //
-      const collateralCall = _.filter(subCallsOfLiquidation, call => {
-        return call.action.to === collateral && call.action.callType === "call"
-      });
-    
-      const collateralTransferDecode = this.cTokenInterface.parseTransaction({data: collateralCall[1].action.input});
-      liquidationOffer.destAmount = collateralTransferDecode.args.seizeTokens;
-      
-
-      ////////////////////////////
-      // Parse underlying transfer
+      ///////////////////////////////////////////
+      // Handle failed liquidations (for cERC20s)
       //
       let callStatus;
-      
-      // ETH case
-      if (liquidationCall.action.to === COMPOUND_CETHER_ADDRESS.toLowerCase()){
-        liquidationOffer.sourceAmount = BigNumber.from(liquidationCall.action.value);
-
-        // No return value for CETHER liquidations, reverts on error (handled above)
-        callStatus = ACTION_STATUS.SUCCESS;
-      }
-      
-      // ERC20 case
-      else {
-        const erc20Contract = new Interface(ERC20_ABI);
-        const underlyingCall = _.filter(subCallsOfLiquidation, call => {
-          return call.action.to === underlying && call.action.callType === "call"
-        });
-        
-        const underlyingTransferDecode = erc20Contract.parseTransaction({data: underlyingCall[0].action.input});
-        liquidationOffer.sourceAmount = underlyingTransferDecode.args.value
-         
+      if (liquidationCall.action.to !== COMPOUND_CETHER_ADDRESS.toLowerCase()){
         // If return code is 0, liquidation was successful, otherwise it failed, label as "CHECKED"
         const ZERO_STRING = "0x0000000000000000000000000000000000000000000000000000000000000000";
         callStatus = liquidationCall.result.output === ZERO_STRING ? ACTION_STATUS.SUCCESS : ACTION_STATUS.CHECKED;
       }
+      else {
+        callStatus = ACTION_STATUS.SUCCESS;
+      }
 
+      ////////////////////////////////////////////
+      // Parse amounts for successful liquidations
+      //
+      if (callStatus === ACTION_STATUS.SUCCESS) {
+        
+        // Parse collateral transfer
+        const collateralCall = _.filter(subCallsOfLiquidation, call => {
+          return call.action.to === collateral && call.action.callType === "call";
+        });
+        const collateralTransferDecode = this.cTokenInterface.parseTransaction({data: collateralCall[1].action.input});
+        liquidationOffer.destAmount = collateralTransferDecode.args.seizeTokens;
+        
+        // Parse underlying transfer
+        
+        // ETH case
+        if (liquidationCall.action.to === COMPOUND_CETHER_ADDRESS.toLowerCase()){
+          liquidationOffer.sourceAmount = BigNumber.from(liquidationCall.action.value);
+        }
+        
+        // ERC20 case
+        else {
+          const erc20Contract = new Interface(ERC20_ABI);
+          const underlyingCall = _.filter(subCallsOfLiquidation, call => {
+            return call.action.to === underlying && call.action.callType === "call";
+          });
+          
+          const underlyingTransferDecode = erc20Contract.parseTransaction({data: underlyingCall[0].action.input});
+          liquidationOffer.sourceAmount = underlyingTransferDecode.args.value;  
+        }
+      }
       
       ///////////////////////////
       // Record LiquidationAction
