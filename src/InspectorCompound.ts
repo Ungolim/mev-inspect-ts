@@ -4,7 +4,7 @@ import { Interface, TransactionDescription, parseEther } from "ethers/lib/utils"
 
 import { getSigHashes, subcallMatch } from "./utils";
 import { Inspector } from "./Inspector";
-import { ERC20_ABI, COMPOUND_CTOKEN_ABI, COMPOUND_CETHER_ABI, COMPOUND_COMPTROLLER_ABI, COMPOUND_ORACLE_ABI } from "./config/abi";
+import { ERC20_ABI, COMPOUND_CERC20_ABI, COMPOUND_CETHER_ABI, COMPOUND_COMPTROLLER_ABI, COMPOUND_ORACLE_ABI } from "./config/abi";
 import { COMPOUND_COMPTROLLER_ADDRESS, COMPOUND_CETHER_ADDRESS, WETH, COMPOUND_ORACLE_ADDRESS } from "./config/addresses";
 import {
   ACTION_PROVIDER,
@@ -18,13 +18,13 @@ import { toLower } from 'lodash';
 import { checkServerIdentity } from 'tls';
 
 export class InspectorCompound extends Inspector {
-  public cTokenInterface: Interface;
+  public cERC20Interface: Interface;
   public cEtherInterface: Interface;
   private static liquidationFunctionName = 'liquidateBorrow';
   private static liquidationAllowedFunctionName = 'liquidateBorrowAllowed';
   private static oracleGetPriceFunctionName = 'getUnderlyingPrice';
 
-  private cTokenLiquidationSig: string;
+  private cERC20LiquidationSig: string;
   private cEtherLiquidationSig: string;
   public cTokenAddresses: Array<string>;
   public underlyingAddresses: Record<string, string>;
@@ -32,8 +32,8 @@ export class InspectorCompound extends Inspector {
   constructor(provider: providers.JsonRpcProvider, cTokenAddresses: Array<string>, underlyingAddresses: Record<string, string>) {
     super(provider);
 
-    this.cTokenInterface = new Interface(COMPOUND_CTOKEN_ABI);
-    this.cTokenLiquidationSig = this.cTokenInterface.getSighash(this.cTokenInterface.getFunction(InspectorCompound.liquidationFunctionName));
+    this.cERC20Interface = new Interface(COMPOUND_CERC20_ABI);
+    this.cERC20LiquidationSig = this.cERC20Interface.getSighash(this.cERC20Interface.getFunction(InspectorCompound.liquidationFunctionName));
     this.cEtherInterface = new Interface(COMPOUND_CETHER_ABI);
     this.cEtherLiquidationSig = this.cEtherInterface.getSighash(this.cEtherInterface.getFunction(InspectorCompound.liquidationFunctionName));
     this.cTokenAddresses = cTokenAddresses;
@@ -47,8 +47,8 @@ export class InspectorCompound extends Inspector {
   
     for (const cTokenAddress of cTokenAddresses){
       if (cTokenAddress !== COMPOUND_CETHER_ADDRESS.toLowerCase()){ // cEther doesn't implement underlying(), handle separately
-        const cTokenContract = new Contract(cTokenAddress, COMPOUND_CTOKEN_ABI, provider);
-        const underlyingAddress = await cTokenContract.underlying();
+        const cERC20Contract = new Contract(cTokenAddress, COMPOUND_CERC20_ABI, provider);
+        const underlyingAddress = await cERC20Contract.underlying();
         underlyingAddresses[cTokenAddress.toLowerCase()] = underlyingAddress.toLowerCase();
       }
       else {
@@ -64,7 +64,7 @@ export class InspectorCompound extends Inspector {
     const unknownCalls = _.clone(calls)
 
     const liquidationCalls = _.filter(unknownCalls, (call) =>
-      (this.cTokenAddresses.some((address) => call.action.to === address)) && (call.action.input.startsWith(this.cTokenLiquidationSig) || call.action.input.startsWith(this.cEtherLiquidationSig)))
+      (this.cTokenAddresses.some((address) => call.action.to === address)) && (call.action.input.startsWith(this.cERC20LiquidationSig) || call.action.input.startsWith(this.cEtherLiquidationSig)))
     
     for (const liquidationCall of liquidationCalls) {
       //////////////////////////////////////
@@ -75,9 +75,9 @@ export class InspectorCompound extends Inspector {
       if (liquidationCall.action.to === COMPOUND_CETHER_ADDRESS.toLowerCase()) {
         parsedLiquidationCall = this.cEtherInterface.parseTransaction({data: liquidationCall.action.input});
       }
-      // cToken case
+      // cERC20 case
       else {
-        parsedLiquidationCall = this.cTokenInterface.parseTransaction({data: liquidationCall.action.input});
+        parsedLiquidationCall = this.cERC20Interface.parseTransaction({data: liquidationCall.action.input});
       }
         
       const subCallsOfLiquidation = _.remove(unknownCalls, call => {
@@ -141,7 +141,7 @@ export class InspectorCompound extends Inspector {
         const collateralCall = _.filter(subCallsOfLiquidation, call => {
           return call.action.to === collateral && call.action.callType === "call";
         });
-        const collateralTransferDecode = this.cTokenInterface.parseTransaction({data: collateralCall[1].action.input});
+        const collateralTransferDecode = this.cERC20Interface.parseTransaction({data: collateralCall[1].action.input});
         liquidationOffer.destAmount = collateralTransferDecode.args.seizeTokens;
         
         // Parse underlying transfer
@@ -153,12 +153,12 @@ export class InspectorCompound extends Inspector {
         
         // ERC20 case
         else {
-          const erc20Contract = new Interface(ERC20_ABI);
           const underlyingCall = _.filter(subCallsOfLiquidation, call => {
             return call.action.to === underlying && call.action.callType === "call";
           });
           
-          const underlyingTransferDecode = erc20Contract.parseTransaction({data: underlyingCall[0].action.input});
+          const erc20Interface = new Interface(ERC20_ABI);
+          const underlyingTransferDecode = erc20Interface.parseTransaction({data: underlyingCall[0].action.input});
           liquidationOffer.sourceAmount = underlyingTransferDecode.args.value;  
         }
       }
